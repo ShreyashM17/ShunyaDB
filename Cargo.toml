@@ -11,6 +11,10 @@ path = "src/lib.rs"
 name = "shunyadb-cli"
 path = "src/main.rs"
 
+[[bin]]
+name = "view_wal"
+path = "tools/view_wal.rs"
+
 [dependencies]
 lru = "0.12"
 serde = { version = "1.0", features = ["derive"] }

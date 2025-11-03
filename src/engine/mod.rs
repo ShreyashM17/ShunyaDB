@@ -35,10 +35,10 @@ impl Engine {
     };
 
     let entry = WalEntry {
-      operation: "INSERT".to_string(),
-      table: table.to_string(),
+      operation: "INSERT".into(),
+      table: table.into(),
       record_id: record.id,
-      data: bincode::serialize(&page).unwrap(),
+      data: bincode::serialize(&record).expect("Unable to log data"),
     };
 
     self.wal.log(&entry);
@@ -88,14 +88,16 @@ impl Engine {
     let mut page = io::load_page_from_disk(&file_path)?;
 
     let before = page.get_all().len();
-    page.records.retain(|r| !r.matches(&filter));
+    let ids_to_delete: Vec<u64> = page.records.iter().filter(|r| r.matches(&filter)).map(|r| r.id).collect();
+    page.records.retain(|r| !ids_to_delete.contains(&r.id));
     let deleted = before - page.get_all().len();
     if deleted > 0 {
+      let delete_payload = bincode::serialize(&ids_to_delete).map_err(|e| anyhow::anyhow!("Failed to serialize delete ids: {:?}", e))?;
       let entry = WalEntry {
         operation: "DELETE".into(),
         table: table.into(),
         record_id: 0,
-        data: vec![],
+        data: delete_payload,
       };
       self.wal.log(&entry);
         io::save_page_to_disk(&page, &file_path)?;
@@ -108,12 +110,20 @@ impl Engine {
     let entries = WriteAheadLog::recover("wal.log");
     for entry in entries {
       match entry.operation.as_str() {
-        "INSERT" | "UPDATE" => {
+        "INSERT" => {
           let record: Record = bincode::deserialize(&entry.data)?;
-            self.insert_record(&entry.table, record)?;
+          self.insert_record(&entry.table, record)?;
+        }
+        "UPDATE" => {
+          let record: Record = bincode::deserialize(&entry.data)?;
+          self.update(&entry.table, Filter::ById(record.id),record.data)?;
         }
         "DELETE" => {
-          // optional for now
+          let ids: Vec<u64> = bincode::deserialize(&entry.data)?;
+          let file_path = util::page_file(&entry.table, 1);
+          let mut page = io::load_page_from_disk(&file_path).unwrap_or_else(|_| Page::new(1, 4096));
+          page.records.retain(|r| !ids.contains(&r.id));
+          io::save_page_to_disk(&page, &file_path)?;
         }
         _ => {}
       }
