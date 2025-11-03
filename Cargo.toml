@@ -3,6 +3,14 @@ name = "shunyadb"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "shunyadb"
+path = "src/lib.rs"
+
+[[bin]]
+name = "shunyadb-cli"
+path = "src/main.rs"
+
 [dependencies]
 lru = "0.12"
 serde = { version = "1.0", features = ["derive"] }
