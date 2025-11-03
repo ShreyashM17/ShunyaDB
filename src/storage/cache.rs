@@ -1,12 +1,11 @@
 use std::num::NonZeroUsize;
 use lru::LruCache;
 use std::sync::{Arc, Mutex};
-
 use crate::storage::page::Page;
 
 #[derive(Clone)]
 pub struct PageCache {
-  cache: Arc<Mutex<LruCache<u64, Page>>>,
+  cache: Arc<Mutex<LruCache<String, Page>>>,
 }
 
 impl PageCache {
@@ -18,18 +17,18 @@ impl PageCache {
     }
   }
 
-  pub fn get(&self, page_id: u64) -> Option<Page> {
+  pub fn get(&self, key: &str) -> Option<Page> {
     let mut cache = self.cache.lock().unwrap();
-    cache.get(&page_id).cloned()
+    cache.get(key).cloned()
   }
 
-  pub fn put(&self, page: Page) {
+  pub fn put(&self, key: &str ,page: Page) {
     let mut cache = self.cache.lock().unwrap();
-    cache.put(page.id, page);
+    cache.put(key.to_string(), page);
   }
 
-  pub fn size(&self) -> usize {
-    let cache = self.cache.lock().unwrap();
-    cache.len()
+  pub fn invalidate(&mut self, key: &str) {
+    let mut cache = self.cache.lock().unwrap();
+    cache.pop(key);
   }
 }

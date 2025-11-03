@@ -10,5 +10,9 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
   Insert { table: String, pairs: Vec<String> },
-  Get { table: String}
+  Get { table: String},
+  Update { table: String, filter: String, patch: Vec<String> },
+  Delete { table: String, filter: String },
+  ReplayWal,
+  TruncateWal
 }
