@@ -18,7 +18,7 @@ pub struct Engine {
 impl Engine {
   pub fn new(wal_path: &str) -> Self {
     let wal = WriteAheadLog::new(wal_path);
-    let cache = PageCache::new(8);
+    let cache = PageCache::new(64);
     Self { wal, cache }
   }
 
@@ -42,7 +42,8 @@ impl Engine {
     };
 
     self.wal.log(&entry);
-    self.cache.put(table, page.clone());
+    let key = format!("{}_page_{}", table, page.id);
+    self.cache.put(&key, page.clone());
     page.insert(record).expect("Page insertion failed");
     io::save_page_to_disk(&page, &file_path)?;
 
@@ -51,11 +52,13 @@ impl Engine {
 
   pub fn get(&mut self, table: &str) -> Page {
     let file_path = util::page_file(&table, 1);
-    let page = if let Some(p) = self.cache.get(&table) {
+    let key = format!("{}_page_1", table);
+    let page = if let Some(p) = self.cache.get(&key) {
       p
     } else {
       let p = io::load_page_from_disk(&file_path).expect("No Data Found");
-      self.cache.put(table, p.clone());
+      let key = format!("{}_page_{}", table, p.id);
+      self.cache.put(&key, p.clone());
       p
     };
     page
@@ -78,7 +81,8 @@ impl Engine {
       };
       self.wal.log(&entry);
     }
-    self.cache.put(table, page.clone());
+    let key = format!("{}_page_{}", table, page.id);
+    self.cache.put(&key, page.clone());
     io::save_page_to_disk(&page, &file_path).expect("Saving to disk failed");
     Ok(updated)
   }
@@ -102,7 +106,8 @@ impl Engine {
       self.wal.log(&entry);
         io::save_page_to_disk(&page, &file_path)?;
       }
-      self.cache.invalidate(table);
+      let key = format!("{}_page_{}", table, page.id);
+      self.cache.invalidate(&key);
     Ok(deleted)
   }
 

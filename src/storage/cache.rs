@@ -19,7 +19,13 @@ impl PageCache {
 
   pub fn get(&self, key: &str) -> Option<Page> {
     let mut cache = self.cache.lock().unwrap();
-    cache.get(key).cloned()
+    if let Some(page) = cache.get(key) {
+        println!("Cache hit: {}", key);
+        Some(page.clone())
+    } else {
+        println!("Cache miss: {}", key);
+        None
+    }
   }
 
   pub fn put(&self, key: &str ,page: Page) {
@@ -27,7 +33,7 @@ impl PageCache {
     cache.put(key.to_string(), page);
   }
 
-  pub fn invalidate(&mut self, key: &str) {
+  pub fn invalidate(&self, key: &str) {
     let mut cache = self.cache.lock().unwrap();
     cache.pop(key);
   }
