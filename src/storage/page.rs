@@ -33,6 +33,7 @@ impl Page {
     &self.records
   }
 
+  // For testing purpose
   pub fn generate_mock_record(&self, id: u64) -> Record {
     let mut data = BTreeMap::new();
     data.insert("Name".to_string(), FieldValue::Text("Shadow".to_string()));
