@@ -2,9 +2,9 @@ use serde::{Serialize, Deserialize};
 use std::collections::BTreeMap;
 use crate::engine::filter::Filter;
 use std::cmp::Ordering;
-use crate::util;
+use crate::util::from_pairs_to_btree;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum FieldValue {
   Int(i64),
   Float(f64),
@@ -49,7 +49,7 @@ impl FieldValue {
   }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Record {
   pub id: u64,
   pub data: BTreeMap<String, FieldValue>,
@@ -68,7 +68,7 @@ impl Record {
   pub fn from_pairs(pairs: Vec<String>) -> Self {
     use std::time::{SystemTime, UNIX_EPOCH};
     let id = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_micros() as u64;
-    let fields = util::from_pairs_to_btree(pairs);
+    let fields = from_pairs_to_btree(pairs);
     Record::new(id, fields)
   }
   

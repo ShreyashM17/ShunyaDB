@@ -1,11 +1,11 @@
 pub mod filter;
 use std::collections::BTreeMap;
 use crate::engine::filter::Filter;
-use crate::storage::io;
-use crate::storage::page::Page;
-use crate::storage::cache::PageCache;
-use crate::storage::record::{FieldValue, Record};
-use crate::storage::wal::{WalEntry, WriteAheadLog};
+use crate::storage::{io, 
+  page::Page, 
+  cache::PageCache, 
+  record::{FieldValue, Record}, 
+  wal::{WalEntry, WriteAheadLog}};
 use std::fs;
 use crate::util;
 use anyhow::Result;
@@ -138,5 +138,9 @@ impl Engine {
 
   pub fn truncate_wal(&mut self) {
     WriteAheadLog::truncate(&self.wal);
+  }
+
+  pub fn clear_cache(&self) {
+    self.cache.clear_cache();
   }
 }

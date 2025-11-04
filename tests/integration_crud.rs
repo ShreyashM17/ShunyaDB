@@ -1,26 +1,53 @@
-use shunyadb::engine::*;
-use shunyadb::storage::record::{Record, FieldValue};
-use std::collections::BTreeMap;
+use shunyadb::engine::Engine;
+use shunyadb::storage::record::FieldValue;
+use shunyadb::storage::{record::Record};
+use shunyadb::engine::filter::Filter;
 
 #[test]
-fn test_crud_btree() {
-  let mut engine = Engine::new("wal.log");
+fn test_insert_and_get() {
+    let mut engine = Engine::new("wal.log");
+    let pairs = vec!["name=Alice".to_string(),"age=25".to_string()];
+    let record = Record::from_pairs(pairs);
+    engine.insert_record("user", record.clone()).unwrap();
+    engine.clear_cache();
+    let results = engine.get("user");
+    assert_eq!(results.records.len(), 1);
+    assert_eq!(results.records[0].data["name"], FieldValue::Text("Alice".into()));
+    engine.truncate_wal();
+}
 
-  // Insert
-  let mut data = BTreeMap::new();
-  data.insert("name".into(), FieldValue::Text("Shreyash".into()));
-  data.insert("age".into(), FieldValue::Int(23));
-  let rec = Record { id: 1, data };
-  engine.insert_record("users", rec.clone()).unwrap();
+#[test]
+fn test_filter_and_delete() {
+    let mut engine = Engine::new("wal.log");
+    let pairs = vec!["name=Bob".to_string(),"age=30".to_string()];
+    let record = Record::from_pairs(pairs);
+    engine.insert_record("people", record.clone()).unwrap();
+    engine.clear_cache();
+    let filter = Filter::parse("name=Bob").unwrap();
+    let deleted = engine.delete("people", filter).unwrap();
+    assert_eq!(deleted, 1);
+    engine.truncate_wal();
+}
 
-  // Update
-  let mut patch = BTreeMap::new();
-  patch.insert("age".into(), FieldValue::Int(24));
-  let filter = filter::Filter::ById(1);
-  let n = engine.update("users", filter.clone(), patch).unwrap();
-  assert_eq!(n, 1);
+#[test]
+fn test_wal_recovery_after_crash() {
+    // Step 1: Insert record normally
+    {
+        let mut engine = Engine::new("wal.log");
+        engine.truncate_wal(); // To truncate if there are any older versions
+        let pairs = vec!["city=Mumbai".to_string()];
+        let record = Record::from_pairs(pairs);
+        engine.insert_record("places", record).unwrap();
+        // Simulate abrupt crash (drop without saving cache)
+    }
 
-  // Delete
-  let deleted = engine.delete("users", filter).unwrap();
-  assert_eq!(deleted, 1);
+    // Step 2: New instance replays WAL
+    {
+        let mut engine = Engine::new("wal.log");
+        engine.replay_wal_at_startup().unwrap();
+
+        let results = engine.get("places");
+        assert!(!results.records.is_empty());
+        assert_eq!(results.records[0].data["city"], FieldValue::Text("Mumbai".into()));
+    }
 }

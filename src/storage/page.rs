@@ -1,7 +1,5 @@
 use std::collections::BTreeMap;
-
-use crate::storage::record::{self, FieldValue, Record};
-
+use crate::storage::record::{FieldValue, Record};
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

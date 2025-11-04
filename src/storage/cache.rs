@@ -37,4 +37,8 @@ impl PageCache {
     let mut cache = self.cache.lock().unwrap();
     cache.pop(key);
   }
+
+  pub fn clear_cache(&self) {
+    self.cache.lock().unwrap().clear();
+  }
 }
