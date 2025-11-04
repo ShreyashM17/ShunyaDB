@@ -1,4 +1,4 @@
-# 📘 `core_engine.md` — ShunyaDB Core Engine (v1.0-core)
+# 📘ShunyaDB Core Engine (v1.0-core)
 
 > **Phase:** 1 – Core Engine
 > **Version:** v1.0-core
@@ -46,10 +46,10 @@ Each operation flows through the **Engine**, which coordinates:
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum FieldValue {
-    Int(i64),
-    Float(f64),
-    Bool(bool),
-    Text(String),
+  Int(i64),
+  Float(f64),
+  Bool(bool),
+  Text(String),
 }
 ```
 
@@ -58,8 +58,8 @@ Each record stores typed data:
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Record {
-    pub id: u64,
-    pub data: BTreeMap<String, FieldValue>,
+  pub id: u64,
+  pub data: BTreeMap<String, FieldValue>,
 }
 ```
 
@@ -67,9 +67,9 @@ Filtering is done via the `Filter` system:
 
 ```rust
 pub enum Filter {
-    ById(u64),
-    ByKeyValueEq(String, FieldValue),
-    ByKeyValueOp(String, String, FieldValue),
+  ById(u64),
+  ByKeyValueEq(String, FieldValue),
+  ByKeyValueOp(String, String, FieldValue),
 }
 ```
 
@@ -81,9 +81,9 @@ A **Page** represents a 4 KB physical unit on disk containing a vector of record
 
 ```rust
 pub struct Page {
-    pub id: u64,
-    pub records: Vec<Record>,
-    pub capacity: usize,
+  pub id: u64,
+  pub records: Vec<Record>,
+  pub capacity: usize,
 }
 ```
 
@@ -99,10 +99,10 @@ Ensures **durability and crash recovery**.
 
 ```rust
 pub struct WalEntry {
-    pub operation: String,
-    pub table: String,
-    pub record_id: u64,
-    pub data: Vec<u8>,
+  pub operation: String,
+  pub table: String,
+  pub record_id: u64,
+  pub data: Vec<u8>,
 }
 ```
 
@@ -143,8 +143,8 @@ pub fn invalidate(&self, key: &str)
 
 ```rust
 pub struct Engine {
-    wal: WriteAheadLog,
-    cache: PageCache,
+  wal: WriteAheadLog,
+  cache: PageCache,
 }
 ```
 
@@ -152,11 +152,11 @@ Core methods:
 
 ```rust
 impl Engine {
-    pub fn insert_record(&mut self, table: &str, record: Record) -> Result<()>;
-    pub fn get(&mut self, table: &str) -> Page;
-    pub fn update(&mut self, table: &str, filter: Filter, patch: BTreeMap<String, FieldValue>) -> Result<usize>;
-    pub fn delete(&mut self, table: &str, filter: Filter) -> Result<usize>;
-    pub fn replay_wal_at_startup(&mut self) -> Result<()>;
+  pub fn insert_record(&mut self, table: &str, record: Record) -> Result<()>;
+  pub fn get(&mut self, table: &str) -> Page;
+  pub fn update(&mut self, table: &str, filter: Filter, patch: BTreeMap<String, FieldValue>) -> Result<usize>;
+  pub fn delete(&mut self, table: &str, filter: Filter) -> Result<usize>;
+  pub fn replay_wal_at_startup(&mut self) -> Result<()>;
 }
 ```
 
