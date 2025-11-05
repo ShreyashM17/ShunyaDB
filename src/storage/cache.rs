@@ -20,10 +20,8 @@ impl PageCache {
   pub fn get(&self, key: &str) -> Option<Page> {
     let mut cache = self.cache.lock().unwrap();
     if let Some(page) = cache.get(key) {
-        println!("Cache hit: {}", key);
         Some(page.clone())
     } else {
-        println!("Cache miss: {}", key);
         None
     }
   }
