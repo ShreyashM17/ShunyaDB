@@ -29,8 +29,14 @@ fn main() -> anyhow::Result<()> {
       println!("Inserted record into `{}`", table);
     }
 
-    Commands::Get { table } => {
-      let page = engine.get(&table);
+    Commands::Get { table, filter } => {
+      let filter_value = Filter::parse(&filter).unwrap();
+      let page = engine.get(&table, filter_value);
+      println!("Records in table = {} \n Filter = {} \n Records: {:#?}", table, filter, page);
+    }
+
+    Commands::GetAll { table } => {
+      let page = engine.get_all(&table);
       println!("Records in table = {} \n Records: {:#?}", table, page);
     }
 

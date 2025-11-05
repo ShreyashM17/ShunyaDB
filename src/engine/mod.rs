@@ -50,7 +50,7 @@ impl Engine {
     Ok(())
   }
 
-  pub fn get(&mut self, table: &str) -> Page {
+  pub fn get_all(&mut self, table: &str) -> Page {
     let file_path = util::page_file(&table, 1);
     let key = format!("{}_page_1", table);
     let page = if let Some(p) = self.cache.get(&key) {
@@ -61,6 +61,21 @@ impl Engine {
       self.cache.put(&key, p.clone());
       p
     };
+    page
+  }
+
+  pub fn get(&mut self, table: &str, filter: Filter) -> Page {
+    let file_path = util::page_file(table, 1);
+    let key = format!("{}_page_1", table);
+    let mut page = if let Some(p) = self.cache.get(&key) {
+      p
+    } else {
+      let p = io::load_page_from_disk(&file_path).expect("No Data Found");
+      let key = format!("{}_page_{}", table, p.id);
+      self.cache.put(&key, p.clone());
+      p
+    };
+    page.records.retain(|r| r.matches(&filter));
     page
   }
 
@@ -104,7 +119,7 @@ impl Engine {
         data: delete_payload,
       };
       self.wal.log(&entry);
-        io::save_page_to_disk(&page, &file_path)?;
+      io::save_page_to_disk(&page, &file_path)?;
       }
       let key = format!("{}_page_{}", table, page.id);
       self.cache.invalidate(&key);
