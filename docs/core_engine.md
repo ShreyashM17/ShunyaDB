@@ -153,8 +153,8 @@ Core methods:
 ```rust
 impl Engine {
   pub fn insert_record(&mut self, table: &str, record: Record) -> Result<()>;
-  pub fn get(&mut self, table: &str) -> Page;
-  pub fn get-all(&mut self, table: &str) -> Page;
+  pub fn get(&mut self, table: &str, filter: Filter) -> Page;
+  pub fn get_all(&mut self, table: &str) -> Page;
   pub fn update(&mut self, table: &str, filter: Filter, patch: BTreeMap<String, FieldValue>) -> Result<usize>;
   pub fn delete(&mut self, table: &str, filter: Filter) -> Result<usize>;
   pub fn replay_wal_at_startup(&mut self) -> Result<()>;
