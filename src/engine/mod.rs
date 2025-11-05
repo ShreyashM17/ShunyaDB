@@ -1,4 +1,6 @@
 pub mod filter;
+pub mod index;
+
 use std::collections::BTreeMap;
 use crate::engine::filter::Filter;
 use crate::storage::{io, 
