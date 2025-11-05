@@ -2,6 +2,8 @@ use shunyadb::engine::Engine;
 use shunyadb::storage::record::FieldValue;
 use shunyadb::storage::{record::Record};
 use shunyadb::engine::filter::Filter;
+use shunyadb::storage::page::Page;
+use shunyadb::storage::cache::PageCache;
 
 #[test]
 fn test_insert_and_get() {
@@ -29,6 +31,16 @@ fn test_filter_and_delete() {
     let deleted = engine.delete("people", filter).unwrap();
     assert_eq!(deleted, 1);
     engine.truncate_wal();
+}
+
+#[test]
+fn test_cache_put_get_invalidate() {
+  let cache = PageCache::new(2);
+  let page = Page::new(2, 4096);
+  cache.put("users_page_2", page.clone());
+  assert!(cache.get("users_page_2").is_some());
+  cache.invalidate("users_page_2");
+  assert!(cache.get("users_page_2").is_none());
 }
 
 #[test]
