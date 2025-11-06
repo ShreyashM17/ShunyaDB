@@ -11,12 +11,11 @@ use crate::storage::{io,
 use std::fs;
 use crate::util;
 use anyhow::Result;
-use clap::builder::Str;
 
 pub struct Engine {
-  wal: WriteAheadLog,
-  cache: PageCache,
-  index: HashMap<String, HashIndex>
+  pub wal: WriteAheadLog,
+  pub cache: PageCache,
+  pub index: HashMap<String, HashIndex>
 }
 
 impl Engine {
