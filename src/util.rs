@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
-
 use crate::storage::record::FieldValue;
-
+use std::path::Path;
+use std::fs;
+use std::io::Result;
 pub fn page_file(table: &str, page_number: u64) -> String {
   format!("data/{}/page_{}.bin", table, page_number)
 }
@@ -23,4 +24,23 @@ pub fn from_pairs_to_btree(pairs: Vec<String>) -> BTreeMap<String, FieldValue> {
       }
     }
   fields
+}
+
+pub fn list_tables() -> Result<Vec<String>> {
+  let database_path = Path::new("data");
+  let mut tables = Vec::new();
+  if !database_path.exists() {
+    return Ok(tables);
+  }
+  for table in fs::read_dir(database_path)? {
+    let table = table?;
+    let metadata = table.metadata()?;
+    if metadata.is_dir() {
+      if let Some(table_name) = table.file_name().to_str() {
+        tables.push(table_name.to_string());
+      }
+    }
+  }
+
+  Ok(tables)
 }
