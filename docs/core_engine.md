@@ -209,6 +209,22 @@ Speedup: 3.75× (Debug Mode)
 
 ---
 
+## Performance Benchmark (Day 20)
+
+4090 records benchmark (cache cleared before scan):
+
+| Operation | Cache | Time (µs) | Speedup |
+|------------|-------|-----------|----------|
+| Linear Scan | ❌ | 8245 | — |
+| Indexed Lookup | ✅ | 1857 | 4.44× |
+
+**Insights**
+- Index + Cache integration validated.
+- Cold read dominated by disk I/O.
+- Hot read hits cache; achieves >4× speedup.
+- With multi-page tables, expected 10–20× gains.
+
+
 ## 🧠 Design Highlights
 
 * **Typed data layer** (`FieldValue` system)
