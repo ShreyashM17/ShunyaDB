@@ -3,6 +3,7 @@ pub mod index;
 
 use std::collections::{BTreeMap, HashMap};
 use crate::engine::{filter::Filter, index::HashIndex};
+use crate::storage::page;
 use crate::storage::{
   io,
   meta::TableMeta, 
@@ -11,14 +12,15 @@ use crate::storage::{
   record::{FieldValue, Record}, 
   wal::{WalEntry, WriteAheadLog}};
 use std::fs;
-use crate::util;
+use crate::util::{self, list_pages};
 use anyhow::Result;
 
 pub struct Engine {
   pub wal: WriteAheadLog,
   pub cache: PageCache,
   pub index: HashMap<String, HashIndex>,
-  pub replaying: bool
+  pub replaying: bool,
+  pub pagecapacity: usize
 }
 
 impl Engine {
@@ -36,7 +38,7 @@ impl Engine {
       );
       index.insert(table, idx);
     }
-    Self { wal, cache, index, replaying: false }
+    Self { wal, cache, index, replaying: false, pagecapacity: 4096 }
   }
 
   pub fn insert_record(&mut self, table: &str, record: Record) -> std::io::Result<()> {
@@ -52,12 +54,12 @@ impl Engine {
         let page = io::load_page_from_disk(&file_path)?;
         if page.is_full() {
           let new_id = last.id + 1;
-          (new_id, Page::new(new_id, 4096))
+          (new_id, Page::new(new_id, self.pagecapacity))
         } else {
           (last.id, page)
         }
       } else {
-        (1, Page::new(1, 4096))
+        (1, Page::new(1, self.pagecapacity))
       };
 
     // Log to WAL
@@ -245,24 +247,78 @@ impl Engine {
     self.clear_cache();
     self.replaying = true;
     let entries = WriteAheadLog::recover("wal.log");
+    let mut buffer :HashMap<String, Vec<Page>> = HashMap::new();
+    let table_vector = util::list_tables()?;
+    if table_vector.len() > 0 {
+      for table in table_vector {
+        let pageid_vector = list_pages(&table)?;
+        if pageid_vector.len() > 0 {
+          let mut page_vector :Vec<Page> = Vec::new();
+          for page_number in pageid_vector {
+            let file_path = util::page_file(&table, page_number);
+            let page = io::load_page_from_disk(&file_path)?;
+            page_vector.push(page);
+          }
+          buffer.insert(table, page_vector);
+        }
+      }
+    };
     for entry in entries {
       match entry.operation.as_str() {
         "INSERT" => {
           let record: Record = bincode::deserialize(&entry.data)?;
-          self.insert_record(&entry.table, record)?;
+          if buffer.contains_key(&entry.table) {
+            if let Some(pages) = buffer.get_mut(&entry.table) {
+              if let Some(last_page) = pages.last_mut() {
+                if last_page.is_full() {
+                  let mut new_page = Page::new(last_page.id + 1, self.pagecapacity);
+                  new_page.insert(record).expect("Insertion failed to new record while replay");
+                  pages.push(new_page);
+                } else {
+                  last_page.insert(record).expect("Insertion failed to existing file while replay");
+                }
+              }
+            }
+          } else {
+            let mut new_page = Page::new(1, self.pagecapacity);
+            new_page.insert(record).expect("Insertion failed to new record while replay");
+            let pages = vec![new_page];
+            buffer.insert(entry.table, pages);
+          }
         }
         "UPDATE" => {
           let record: Record = bincode::deserialize(&entry.data)?;
-          self.update(&entry.table, Filter::ById(record.id),record.data)?;
+          if buffer.contains_key(&entry.table) {
+            if let Some(pages) = buffer.get_mut(&entry.table) {
+              for page in pages {
+                for oldrecord in page.records.iter_mut() {
+                  if oldrecord.matches(&Filter::ById(record.id)) {
+                    oldrecord.apply_patch(&record.data);
+                  }
+                }
+              }
+            }
+          }
         }
         "DELETE" => {
           let ids: Vec<u64> = bincode::deserialize(&entry.data)?;
-          let file_path = util::page_file(&entry.table, 1);
-          let mut page = io::load_page_from_disk(&file_path).unwrap_or_else(|_| Page::new(1, 4096));
-          page.records.retain(|r| !ids.contains(&r.id));
-          io::save_page_to_disk(&page, &file_path)?;
+          if buffer.contains_key(&entry.table) {
+            if let Some(pages) = buffer.get_mut(&entry.table) {
+              for page in pages {
+                page.records.retain(|r| !ids.contains(&r.id));
+              }
+            }
+          }
         }
         _ => {}
+      }
+    }
+
+    for (table, pages) in buffer {
+      fs::create_dir_all(format!("data/{}", table))?;
+      for page in pages {
+        let file_path = util::page_file(&table, page.id);
+        io::save_page_to_disk(&page, &file_path).expect("Unable to save page");
       }
     }
 
