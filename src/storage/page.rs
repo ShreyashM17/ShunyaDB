@@ -31,6 +31,12 @@ impl Page {
     &self.records
   }
 
+  pub fn is_full(&self) -> bool {
+    if self.records.len() >= self.capacity {
+      return true;
+    }
+    return false;
+  }
   // For testing purpose
   pub fn generate_mock_record(&self, id: u64) -> Record {
     let mut data = BTreeMap::new();

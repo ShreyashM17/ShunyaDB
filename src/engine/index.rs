@@ -1,9 +1,8 @@
 // src/engine/index.rs
-use std::{collections::HashMap, fmt::format, fs::File, io::{BufReader, BufWriter}, iter::FilterMap};
+use std::{collections::HashMap, fs::File, io::{BufReader, BufWriter}};
 use serde::{Serialize, Deserialize};
 use crate::storage::{io, record::{FieldValue, Record}};
 use bincode;
-use crate::util;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HashIndex {

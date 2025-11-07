@@ -36,7 +36,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     Commands::GetAll { table } => {
-      let page = engine.get_all(&table);
+      let page = engine.get_all(&table)?;
       println!("Records in table = {} \n Records: {:#?}", table, page);
     }
 

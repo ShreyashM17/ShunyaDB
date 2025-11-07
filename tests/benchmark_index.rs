@@ -24,19 +24,19 @@ fn benchmark_index_vs_scan() {
         shunyadb::engine::index::HashIndex::rebuild_index(table).unwrap(),
     );
 
-    // 1️⃣ Uncached linear scan
+    // Uncached linear scan
     engine.clear_cache();
     let start = Instant::now();
     let filter = shunyadb::engine::filter::Filter::parse("name=User500").unwrap();
     let _res1 = engine.get(table, filter.clone());
     let linear_time = start.elapsed().as_micros();
 
-    // 2️⃣ Indexed lookup
+    // Indexed lookup
     let start = Instant::now();
     let _res2 = engine.get(table, filter);
     let indexed_time = start.elapsed().as_micros();
 
-    println!("\n📊 Benchmark Results:");
+    println!("\nBenchmark Results:");
     println!("Linear:  {} µs", linear_time);
     println!("Indexed: {} µs", indexed_time);
     println!("Speedup: {:.2}x", linear_time as f64 / indexed_time as f64);

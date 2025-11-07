@@ -44,3 +44,24 @@ pub fn list_tables() -> Result<Vec<String>> {
 
   Ok(tables)
 }
+
+pub fn list_pages(table : &str) -> Result<Vec<u64>> {
+  let dir = format!("data/{}", table);
+  let mut pages: Vec<u64> = Vec::new();
+  if Path::new(&dir).exists() {
+    for entry in fs::read_dir(dir)? {
+      let path = entry?.path();
+      if let Some(fname) = path.file_stem() {
+        if let Some(s) = fname.to_str() {
+          if s.starts_with("page_") {
+            if let Ok(id) = s[5..].parse::<u64>() {
+              pages.push(id);
+            }
+          }
+        }
+      }
+    }
+  }
+  pages.sort();
+  Ok(pages)
+}

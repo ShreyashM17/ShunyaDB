@@ -209,7 +209,7 @@ Speedup: 3.75× (Debug Mode)
 
 ---
 
-## Performance Benchmark (Day 20)
+**Performance Benchmark**
 
 4090 records benchmark (cache cleared before scan):
 
@@ -223,6 +223,15 @@ Speedup: 3.75× (Debug Mode)
 - Cold read dominated by disk I/O.
 - Hot read hits cache; achieves >4× speedup.
 - With multi-page tables, expected 10–20× gains.
+
+**CRUD benchmarks**
+For 10000 records
+- ✅ Inserted 10000 records in 147.96s (67.58 ops/sec)
+- 🔍 GET query completed in 2.859ms (records found: 1)
+- ✏️  Updated 200 records in 150.23ms (1331.30 ops/sec)
+- 🗑️  Deleted 200 records in 71.61ms (2792.92 ops/sec)
+- 💾 WAL replay completed in 953.978s
+- 📊 Pages: 3 | Records remaining: 9918 | Avg/page: 3306.00
 
 
 ## 🧠 Design Highlights
