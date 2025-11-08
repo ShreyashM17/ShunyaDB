@@ -8,12 +8,8 @@ name = "shunyadb"
 path = "src/lib.rs"
 
 [[bin]]
-name = "shunyadb-cli"
+name = "shunyadb"
 path = "src/main.rs"
-
-[[bin]]
-name = "view_wal"
-path = "tools/view_wal.rs"
 
 [dependencies]
 lru = "0.12"
