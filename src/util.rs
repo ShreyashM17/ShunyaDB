@@ -1,8 +1,9 @@
 use std::collections::BTreeMap;
-use crate::storage::record::FieldValue;
+use crate::storage::{record::FieldValue, page::Page};
 use std::path::Path;
 use std::fs;
 use std::io::Result;
+
 pub fn page_file(table: &str, page_number: u64) -> String {
   format!("data/{}/page_{}.bin", table, page_number)
 }
@@ -64,4 +65,13 @@ pub fn list_pages(table : &str) -> Result<Vec<u64>> {
   }
   pages.sort();
   Ok(pages)
+}
+
+pub fn pages_contain_record(pages: &Vec<Page>, id: u64) -> bool {
+  for p in pages {
+    if p.records.iter().any(|r| r.id == id) {
+      return true;
+    }
+  }
+  false
 }

@@ -11,7 +11,7 @@ use crate::storage::{
   record::{FieldValue, Record}, 
   wal::{WalEntry, WriteAheadLog}};
 use std::fs;
-use crate::util::{self, list_pages};
+use crate::util;
 use anyhow::Result;
 
 pub struct Engine {
@@ -40,8 +40,9 @@ impl Engine {
     Self { wal, cache, index, replaying: false, pagecapacity: 4096 }
   }
 
-  /// Insert a record (normal runtime path)
-  pub fn insert_record(&mut self, table: &str, record: Record) -> std::io::Result<()> {
+  /// Inserts a new record into a given table.
+  /// Logs the operation to WAL and updates the page + cache.
+  pub fn insert_record(&mut self, table: &str, record: Record) -> Result<()> {
     // Create data folder for the table if not exists
     fs::create_dir_all(format!("data/{}", table))?;
 
@@ -95,7 +96,8 @@ impl Engine {
     Ok(())
   }
 
-  pub fn get_all(&mut self, table: &str) -> std::io::Result<Vec<Page>> {
+  /// Retrieves all records for a given table
+  pub fn get_all(&mut self, table: &str) -> Result<Vec<Page>> {
     let meta = TableMeta::load(table)?;
     let mut pages = Vec::new();
     for page in &meta.pages {
@@ -113,7 +115,8 @@ impl Engine {
     Ok(pages)
   }
 
-  pub fn get(&mut self, table: &str, filter: Filter) -> std::io::Result<Vec<Page>> {
+  /// Retrieves filtered records using the provided filter.
+  pub fn get(&mut self, table: &str, filter: Filter) -> Result<Vec<Page>> {
     let mut index_record_ids = Vec::new();
     let mut page_ids: Vec<u64> = Vec::new();
     let mut pages = Vec::new();
@@ -168,6 +171,7 @@ impl Engine {
     Ok(pages)
   }
 
+  /// Updates records matching a filter with the given patch map.
   pub fn update(&mut self, table: &str, filter: Filter, patch: BTreeMap<String, FieldValue>) -> Result<usize> {
     let mut meta = TableMeta::load(table)?;
     let mut updated = 0;
@@ -209,6 +213,7 @@ impl Engine {
     Ok(updated)
   }
 
+  /// Deletes records matching the given filter.
   pub fn delete(&mut self, table: &str, filter: Filter) -> Result<usize> {
     let mut meta = TableMeta::load(table)?;
     let mut total_deleted = 0;
@@ -274,16 +279,7 @@ impl Engine {
     Ok(total_deleted)
   }
 
-  /// Helper: check whether pages vector already contains a record id
-  fn pages_contain_record(pages: &Vec<Page>, id: u64) -> bool {
-    for p in pages {
-      if p.records.iter().any(|r| r.id == id) {
-        return true;
-      }
-    }
-    false
-  }
-
+  /// Replays WAL entries at startup to recover from crashes.
   pub fn replay_wal_at_startup(&mut self) -> Result<()> {
     // Clear cache and mark replaying
     self.clear_cache();
@@ -295,7 +291,7 @@ impl Engine {
     let table_vector = util::list_tables()?;
     if table_vector.len() > 0 {
       for table in table_vector {
-        let pageid_vector = list_pages(&table)?;
+        let pageid_vector = util::list_pages(&table)?;
         if pageid_vector.len() > 0 {
           let mut page_vector :Vec<Page> = Vec::new();
           for page_number in pageid_vector {
@@ -316,7 +312,7 @@ impl Engine {
           if buffer.contains_key(&entry.table) {
             if let Some(pages) = buffer.get_mut(&entry.table) {
               // avoid duplicate inserts by checking existing ids
-              if Self::pages_contain_record(pages, record.id) {
+              if util::pages_contain_record(pages, record.id) {
                 continue;
               }
 
