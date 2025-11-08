@@ -194,14 +194,14 @@ impl Engine {
 | **Record Serialization** | Validates serde + bincode roundtrip | ✅                |
 | **WAL Recovery**         | Replays log after simulated crash   | ✅                |
 | **CLI CRUD Tests**       | End-to-end functional test          | ✅                |
-| **Cache Benchmark**      | Validates read optimization         | ✅ (3.75× faster) |
+| **Cache Benchmark**      | Validates read optimization         | ✅ (4.09x faster) |
 
 **Cache Benchmark Results**
 
 ```
-Uncached: 34900 ms
-Cached: 9306 ms
-Speedup: 3.75× (Debug Mode)
+Uncached: 33066 ms
+Cached: 8093 ms
+Speedup: 4.09x (Debug Mode)
 ```
 
 > ⚙️ Note: Under `--release`, expected speedup ≈ 5–10×.
@@ -228,9 +228,9 @@ Speedup: 3.75× (Debug Mode)
 **CRUD Benchmark Summary for 10000 records**
 - Insert Time:  190.36s
 - Get Time:     3.736ms
-- Update Time:  235.40ms
-- Delete Time:  115.23ms
-- Replay Time:  1.08s
+- Update Time:  76.92ms
+- Delete Time:  78.48ms
+- Replay Time:  390.88ms
 
 
 ## 🧠 Design Highlights

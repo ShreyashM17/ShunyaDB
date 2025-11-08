@@ -8,6 +8,7 @@ use shunyadb::util;
 fn benchmark_cache_vs_uncached_reads() {
   let table = "users";
   let file_path = util::page_file(table, 1);
+  fs::remove_dir_all(format!("data/{}", table)).ok();
   fs::create_dir_all(format!("data/{}", table)).expect("Unable to Create directory");
 
   // Load or create page
@@ -15,7 +16,7 @@ fn benchmark_cache_vs_uncached_reads() {
     io::load_page_from_disk(&file_path).unwrap()
   } else {
     let mut p = Page::new(1, 4096);
-    for i in 0..4094 {
+    for i in 0..4000 {
       let mut data = BTreeMap::new();
       data.insert("Name".to_string(), FieldValue::Text("Shadow".to_string()));
       data.insert("Age".to_string(), FieldValue::Int(i.clone()));
@@ -29,7 +30,7 @@ fn benchmark_cache_vs_uncached_reads() {
 
   // --- Without cache ---
   let start = Instant::now();
-  for _ in 0..4094 {
+  for _ in 0..4000 {
     let _ = io::load_page_from_disk(&file_path).expect("No Data Found");
   }
   let uncached_duration = start.elapsed().as_millis();

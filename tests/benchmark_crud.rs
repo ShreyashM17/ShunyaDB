@@ -40,6 +40,7 @@ fn benchmark_full_crud_suite() {
     let res = engine.get(table, filter).unwrap();
     let get_time = start_get.elapsed();
     let records_found: usize = res.iter().map(|p| p.records.len()).sum();
+    assert_eq!(records_found, 1);
     println!(
         "🔍 GET query completed in {:.3?} (records found: {})",
         get_time,
