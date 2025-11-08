@@ -44,4 +44,8 @@ impl TableMeta {
   pub fn latest_page(&self) -> Option<&PageMeta> {
     self.pages.last()
   }
+
+  pub fn remove_page(&mut self, page_id: u64) {
+    self.pages.retain(|p| !p.id == page_id);
+  }
 }

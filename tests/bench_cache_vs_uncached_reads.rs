@@ -1,6 +1,7 @@
 use std::time::Instant;
 use std::fs;
-use shunyadb::storage::{io, page::Page, cache::PageCache};
+use std::collections::BTreeMap;
+use shunyadb::storage::{io, page::Page, cache::PageCache, record::FieldValue, record::Record};
 use shunyadb::util;
 
 #[test]
@@ -15,7 +16,11 @@ fn benchmark_cache_vs_uncached_reads() {
   } else {
     let mut p = Page::new(1, 4096);
     for i in 0..4094 {
-      let record = p.generate_mock_record(i); // optional helper
+      let mut data = BTreeMap::new();
+      data.insert("Name".to_string(), FieldValue::Text("Shadow".to_string()));
+      data.insert("Age".to_string(), FieldValue::Int(i.clone()));
+      data.insert("Alive".to_string(), FieldValue::Bool(true));
+      let record = Record::new(i as u64, data);
       p.insert(record).expect("Unable to insert recordS");
     }
       io::save_page_to_disk(&p, &file_path).expect("Unable to save to disk");

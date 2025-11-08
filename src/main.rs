@@ -62,6 +62,11 @@ fn main() -> anyhow::Result<()> {
       engine.truncate_wal();
       println!("WAL truncated");
     }
+
+    Commands::IntegrityCheck => {
+      engine.integrity_check()?;
+      println!("Intergity check completed");
+    }
   }
 
   Ok(())

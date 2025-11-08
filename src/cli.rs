@@ -15,5 +15,6 @@ pub enum Commands {
   Update { table: String, filter: String, patch: Vec<String> },
   Delete { table: String, filter: String },
   ReplayWal,
-  TruncateWal
+  TruncateWal,
+  IntegrityCheck
 }
