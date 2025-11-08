@@ -1,7 +1,7 @@
 use shunyadb::engine::Engine;
 use shunyadb::engine::filter::Filter;
-use shunyadb::storage::record::{Record, FieldValue};
 use shunyadb::storage::meta::TableMeta;
+use shunyadb::storage::record::{FieldValue, Record};
 use std::collections::BTreeMap;
 use std::time::Instant;
 
@@ -43,8 +43,7 @@ fn benchmark_full_crud_suite() {
     assert_eq!(records_found, 1);
     println!(
         "🔍 GET query completed in {:.3?} (records found: {})",
-        get_time,
-        records_found
+        get_time, records_found
     );
 
     // --- UPDATE BENCHMARK ---
@@ -79,10 +78,7 @@ fn benchmark_full_crud_suite() {
     let start_replay = Instant::now();
     engine.replay_wal_at_startup().unwrap();
     let replay_time = start_replay.elapsed();
-    println!(
-        "💾 WAL replay completed in {:.3?}",
-        replay_time
-    );
+    println!("💾 WAL replay completed in {:.3?}", replay_time);
 
     // --- VALIDATE METADATA ---
     let meta = TableMeta::load(table).unwrap();
