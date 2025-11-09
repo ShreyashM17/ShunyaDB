@@ -298,7 +298,7 @@ impl Engine {
         self.replaying = true;
 
         // Recover WAL entries
-        let entries = WriteAheadLog::recover("wal.log");
+        let entries = self.wal.recover();
         let mut buffer: HashMap<String, Vec<Page>> = HashMap::new();
         let table_vector = util::list_tables()?;
         if !table_vector.is_empty() {

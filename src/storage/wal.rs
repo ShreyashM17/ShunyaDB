@@ -37,8 +37,8 @@ impl WriteAheadLog {
         self.file.flush().unwrap();
     }
 
-    pub fn recover(path: &str) -> Vec<WalEntry> {
-        let mut file = OpenOptions::new().read(true).open(path).unwrap();
+    pub fn recover(&self) -> Vec<WalEntry> {
+        let mut file = OpenOptions::new().read(true).open(self.file_path.clone()).unwrap();
         let mut entries = Vec::new();
         loop {
             let mut size_buf = [0u8; 8];
