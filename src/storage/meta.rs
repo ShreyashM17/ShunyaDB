@@ -54,4 +54,11 @@ impl TableMeta {
     pub fn remove_page(&mut self, page_id: u64) {
         self.pages.retain(|p| !p.id == page_id);
     }
+
+    pub fn latest_page_id(&self) -> u64 {
+        match self.latest_page() {
+            Some(p) => p.id,
+            None => 1,
+        }
+    }
 }

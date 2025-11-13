@@ -32,4 +32,9 @@ impl Page {
         }
         false
     }
+
+    pub fn from_records(&mut self, records: Vec<Record>) -> Result<(), &'static str> {
+        self.records = records;
+        Ok(())
+    }
 }
