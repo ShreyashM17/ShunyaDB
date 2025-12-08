@@ -2,6 +2,7 @@ pub mod filter;
 pub mod index;
 
 use crate::engine::{filter::Filter, index::HashIndex};
+use crate::storage::memtable::{MemTable};
 use crate::storage::{
     cache::PageCache,
     io,
@@ -19,6 +20,7 @@ pub struct Engine {
     pub wal: WriteAheadLog,
     pub cache: PageCache,
     pub index: HashMap<String, HashIndex>,
+    pub memtables: HashMap<String, MemTable>,
     pub replaying: bool,
     pub pagecapacity: usize,
 }
@@ -40,6 +42,7 @@ impl Engine {
             wal,
             cache,
             index,
+            memtables: HashMap::new(),
             replaying: false,
             pagecapacity: 4096,
         }
@@ -48,26 +51,7 @@ impl Engine {
     /// Inserts a new record into a given table.
     /// Logs the operation to WAL and updates the page + cache.
     pub fn insert_record(&mut self, table: &str, record: Record) -> Result<()> {
-        // Create data folder for the table if not exists
-        fs::create_dir_all(format!("data/{}", table))?;
-
-        // load meta data
-        let mut meta = TableMeta::load(table)?;
-
-        // Load or create first page
-        let (page_id, mut page) = if let Some(last) = meta.latest_page() {
-            let file_path = util::page_file(table, last.id);
-            let page = io::load_page_from_disk(&file_path)?;
-            if page.is_full() {
-                let new_id = last.id + 1;
-                (new_id, Page::new(new_id, self.pagecapacity))
-            } else {
-                (last.id, page)
-            }
-        } else {
-            (1, Page::new(1, self.pagecapacity))
-        };
-
+        
         // Log to WAL
         if !self.replaying {
             let entry = WalEntry {
@@ -79,24 +63,15 @@ impl Engine {
             self.wal.log(&entry);
         }
 
-        // Insert to disk
-        page.insert(record.clone()).expect("Page insertion failed");
-        let file_path = util::page_file(table, page_id);
-        io::save_page_to_disk(&page, &file_path)?;
+        let memtable = self.memtables.entry(table.to_string()).or_insert_with(|| MemTable::new(4096));
 
-        // Update cache (ensure updated page is present)
-        let key = format!("{}_page_{}", table, page_id);
-        self.cache.put(&key, page.clone());
+        // Add to MemTable
+        memtable.insert(record.clone());
 
-        // Update metadata
-        meta.update_page(page_id, page.records.len() as u64);
-        meta.save()?;
-
-        // Update index and persist it
-        let mut idx = self.index.entry(table.to_string()).or_default().clone();
-        idx.add_record(&record, page_id);
-        idx.save(table)?;
-        self.index.insert(table.to_string(), idx);
+        // Flush when full
+        if memtable.is_full() {
+            self.build_pages(table)?;
+        }
 
         Ok(())
     }
@@ -298,7 +273,7 @@ impl Engine {
         self.replaying = true;
 
         // Recover WAL entries
-        let entries = WriteAheadLog::recover("wal.log");
+        let entries = self.wal.recover();
         let mut buffer: HashMap<String, Vec<Page>> = HashMap::new();
         let table_vector = util::list_tables()?;
         if !table_vector.is_empty() {
@@ -469,6 +444,54 @@ impl Engine {
             }
             meta.save()?;
         }
+        Ok(())
+    }
+
+    pub fn build_pages(&mut self, table: &str) -> Result<()> {
+        // Create table if not exists
+        fs::create_dir_all(format!("data/{}",table))?;
+
+        let memtable = match self.memtables.get_mut(table) {
+            Some(m) => m,
+            None => return Ok(()), // nothing to build
+        };
+
+        if memtable.data.is_empty() {
+            return Ok(());
+        }
+
+        let mut meta = TableMeta::load(table)?;
+        let next_page_id = meta.latest_page_id();
+
+        // Step 1 — Use MemTable to build sorted, deduped pages
+        let pages = memtable.flush_to_page(table, next_page_id, self.pagecapacity)?;
+        memtable.clear();
+
+        // Step 2 — Update metadata
+        for (page_id,page) in &pages {
+            meta.update_page(page_id.clone(), page.records.len() as u64);
+        }
+        meta.save()?;
+
+        // Step 3 — Update HashIndex
+        let mut idx = self.index.entry(table.to_string()).or_default().clone();
+        for (page_id, page) in &pages {
+            for rec in &page.records {
+                idx.add_record(rec, page_id.clone());
+            }
+        }
+        idx.save(table)?;
+        self.index.insert(table.to_string(), idx);
+
+        // Step 4 — Update cache
+        for (page_id, page) in &pages {
+            let key = format!("{}_page_{}", table, page_id);
+            self.cache.put(&key, page.clone());
+        }
+
+        // Step 5 — Truncate WAL
+        self.truncate_wal();
+
         Ok(())
     }
 }
