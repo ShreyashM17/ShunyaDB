@@ -3,17 +3,9 @@ name = "shunyadb"
 version = "0.1.0"
 edition = "2024"
 
-[lib]
-name = "shunyadb"
-path = "src/lib.rs"
-
-[[bin]]
-name = "shunyadb"
-path = "src/main.rs"
-
 [dependencies]
-lru = "0.12"
 serde = { version = "1.0", features = ["derive"] }
 bincode = "1.3"
-clap = { version = "4", features = ["derive"] }
+crc32fast = "1.3"
 anyhow = "1.0"
+once_cell = "1.18"
