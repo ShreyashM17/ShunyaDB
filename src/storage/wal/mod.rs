@@ -1,3 +1,5 @@
+pub mod replay;
+
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};

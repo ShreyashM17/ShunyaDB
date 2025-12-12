@@ -1,6 +1,6 @@
 use super::*;
 use tempfile::tempdir;
-use crate::storage::record::{Record, FieldValue};
+use crate::storage::record::Record;
 use crate::engine::seqno;
 
 #[test]
