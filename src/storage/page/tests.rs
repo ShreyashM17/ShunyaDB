@@ -89,3 +89,44 @@ fn empty_page_is_not_allowed() {
     let pb = PageBuilder::new();
     let _ = pb.build();
 }
+
+use crate::storage::page::reader::*;
+
+#[test]
+fn page_roundtrip_works() {
+    let mut pb = PageBuilder::new();
+    pb.add(Record::from_pairs("a", 1, vec![("x", FieldValue::Int(1))]));
+    pb.add(Record::from_pairs("b", 2, vec![("x", FieldValue::Int(2))]));
+
+    let page = pb.build();
+
+    // simulate disk bytes: [header][payload]
+    let mut bytes = Vec::new();
+    bytes.extend(bincode::serialize(&page.header).unwrap());
+    bytes.extend(&page.payload);
+
+    let decoded = read_page(&bytes).unwrap();
+
+    assert_eq!(decoded.header, page.header);
+    assert_eq!(decoded.records.len(), 2);
+    assert_eq!(decoded.records[0].id, "a");
+    assert_eq!(decoded.records[1].id, "b");
+}
+
+#[test]
+fn detects_checksum_corruption() {
+    let mut pb = PageBuilder::new();
+    pb.add(Record::from_pairs("x", 10, vec![("v", FieldValue::Int(1))]));
+    let page = pb.build();
+
+    let mut bytes = Vec::new();
+    bytes.extend(bincode::serialize(&page.header).unwrap());
+
+    // corrupt payload
+    let mut payload = page.payload.clone();
+    payload[0] ^= 0xFF;
+    bytes.extend(payload);
+
+    let result = read_page(&bytes);
+    assert!(result.is_err());
+}
