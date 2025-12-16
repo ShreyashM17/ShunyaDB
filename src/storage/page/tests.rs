@@ -2,6 +2,8 @@ use super::header::PageHeader;
 use super::builder::*;
 use crate::storage::record::{Record, FieldValue};
 use crate::storage::page::lookup::PageLookupResult;
+use crate::storage::page::io::*;
+use tempfile::tempdir;
 
 #[test]
 fn page_header_validation_works() {
@@ -178,4 +180,42 @@ fn lookup_uses_page_pruning() {
     // outside page range
     let res = page.get("a", 100);
     assert_eq!(res, PageLookupResult::NotFound);
+}
+
+
+// io tests
+#[test]
+fn page_write_and_read_roundtrip() {
+    let dir = tempdir().unwrap();
+    let page_path = dir.path().join("page_1.pg");
+
+    let mut pb = PageBuilder::new();
+    pb.add(Record::from_pairs("a", 1, vec![("v", FieldValue::Int(1))]));
+    pb.add(Record::from_pairs("b", 2, vec![("v", FieldValue::Int(2))]));
+
+    let page = pb.build();
+
+    write_page(&page_path, &page).unwrap();
+    let loaded = read_page_from_disk(&page_path).unwrap();
+
+    assert_eq!(loaded.header, page.header);
+    assert_eq!(loaded.records.len(), 2);
+    assert_eq!(loaded.records[0].id, "a");
+    assert_eq!(loaded.records[1].id, "b");
+}
+
+#[test]
+fn page_is_immutable() {
+    let dir = tempdir().unwrap();
+    let page_path = dir.path().join("page.pg");
+
+    let mut pb = PageBuilder::new();
+    pb.add(Record::from_pairs("x", 1, vec![("v", FieldValue::Int(1))]));
+    let page = pb.build();
+
+    write_page(&page_path, &page).unwrap();
+
+    // Writing again should fail
+    let result = write_page(&page_path, &page);
+    assert!(result.is_err());
 }
