@@ -1,6 +1,7 @@
 use super::header::PageHeader;
 use super::builder::*;
 use crate::storage::record::{Record, FieldValue};
+use crate::storage::page::lookup::PageLookupResult;
 
 #[test]
 fn page_header_validation_works() {
@@ -129,4 +130,52 @@ fn detects_checksum_corruption() {
 
     let result = read_page(&bytes);
     assert!(result.is_err());
+}
+
+// Tests for page lookup
+#[test]
+fn lookup_finds_existing_record() {
+    let mut pb = PageBuilder::new();
+    pb.add(Record::from_pairs("a", 5, vec![("v", FieldValue::Int(1))]));
+    pb.add(Record::from_pairs("b", 10, vec![("v", FieldValue::Int(2))]));
+
+    let page = pb.build();
+
+    let res = page.get("a", 100);
+    assert!(matches!(res, PageLookupResult::Found(_)));
+}
+
+#[test]
+fn lookup_respects_snapshot_seqno() {
+    let mut pb = PageBuilder::new();
+    pb.add(Record::from_pairs("x", 50, vec![("v", FieldValue::Int(1))]));
+
+    let page = pb.build();
+
+    let res = page.get("x", 10);
+    assert_eq!(res, PageLookupResult::NotVisible);
+}
+
+#[test]
+fn lookup_returns_not_found_for_missing_key() {
+    let mut pb = PageBuilder::new();
+    pb.add(Record::from_pairs("a", 1, vec![("v", FieldValue::Int(1))]));
+
+    let page = pb.build();
+
+    let res = page.get("z", 100);
+    assert_eq!(res, PageLookupResult::NotFound);
+}
+
+#[test]
+fn lookup_uses_page_pruning() {
+    let mut pb = PageBuilder::new();
+    pb.add(Record::from_pairs("m", 10, vec![("v", FieldValue::Int(1))]));
+    pb.add(Record::from_pairs("n", 20, vec![("v", FieldValue::Int(2))]));
+
+    let page = pb.build();
+
+    // outside page range
+    let res = page.get("a", 100);
+    assert_eq!(res, PageLookupResult::NotFound);
 }
