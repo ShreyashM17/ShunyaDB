@@ -17,11 +17,6 @@ impl MemTable {
     self.data.insert(record.id.clone(), record);
   }
 
-  pub fn delete(&mut self, id: String, seqno: u64) {
-    let tombstone = Record::new_tombstone(id.clone(), seqno);
-    self.data.insert(id, tombstone);
-  }
-
   pub fn get(&self, id: &str, snapshot_seqno: u64) -> Option<&Record> {
     match self.data.get(id) {
       Some(rec) if rec.seqno <= snapshot_seqno => Some(rec),

@@ -109,7 +109,7 @@ impl Record {
     Self::new(id, seqno, map)
   }
 
-  pub fn is_deleted(&self) -> bool {
+  pub fn is_tombstone(&self) -> bool {
     self.is_tombstone
   }
 }

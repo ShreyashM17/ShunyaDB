@@ -2,7 +2,7 @@ use anyhow::{Result, bail};
 use std::path::Path;
 
 use crate::storage::memtable::MemTable;
-use crate::storage::page::builder::{Page, PageBuilder};
+use crate::storage::page::builder::PageBuilder;
 use crate::storage::page::io::write_page;
 
 pub fn flush_memtable(memtable: &mut MemTable, page_path: impl AsRef<Path>) -> Result<()> {
