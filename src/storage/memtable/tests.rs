@@ -1,4 +1,4 @@
-use super::Memtable as MemTable;
+use super::MemTable;
 use crate::storage::record::{Record, FieldValue};
 
 #[test]

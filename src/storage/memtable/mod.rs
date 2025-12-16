@@ -2,11 +2,11 @@ use std::collections::BTreeMap;
 use crate::storage::record::Record;
 
 #[derive(Debug)]
-pub struct Memtable {
+pub struct MemTable {
   pub data: BTreeMap<String, Record>,
 }
 
-impl Memtable {
+impl MemTable {
   pub fn new() -> Self {
     Self {
       data: BTreeMap::new(),
