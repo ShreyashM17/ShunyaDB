@@ -1,71 +1,60 @@
 use anyhow::Result;
-use crate::engine::seqno;
-use crate::storage::memtable::{self, MemTable};
-use crate::storage::record::{FieldValue, Record};
-use crate::storage::flush::flush_memtable;
-use crate::storage::wal::{Wal, WalEntry, WalOp};
+use std::path::{Path, PathBuf};
+use std::collections::BTreeMap;
+use crate::storage::record::Record;
+use crate::engine::reader::Reader;
+use crate::engine::writer::Writer;
+use crate::storage::memtable::MemTable;
+use crate::storage::record::FieldValue;
+use crate::storage::wal::Wal;
+use crate::meta::TableMeta;
 
 pub struct Engine {
-  wal: Wal,
-  memtable: MemTable,
-  data_dir: std::path::PathBuf,
+    memtable: MemTable,
+    wal: Wal,
+    reader: Reader,
+    writer: Writer,
+    meta: TableMeta,
+    data_dir: PathBuf,
 }
 
 impl Engine {
-  pub fn open(data_dir: impl Into<std::path::PathBuf>) -> Result<Self> {
-    let data_dir = data_dir.into();
-    let wal_path = data_dir.join("wal.log");
-    let wal = Wal::open(&wal_path)?;
-    let memtable = MemTable::new();
+    pub fn open(path: impl AsRef<Path>) -> Result<Self> {
+        let path = path.as_ref().to_path_buf();
 
-    Ok(Self { wal, memtable, data_dir })
-  }
+        let wal = Wal::open(path.join("wal.log"))?;
+        let memtable = MemTable::new();
+        let meta = TableMeta::load(path.join("meta.json"))?;
 
-  pub fn put(&mut self, table: String , id: String, fields: Vec<(String, FieldValue)>) -> Result<()> {
-    let seqno = seqno::allocate();
-    let record = Record::from_pairs(id, seqno, fields);
-    let entry = WalEntry::new(WalOp::Insert, table, record.id.clone(), seqno, Some(record.clone()));
-    self.wal.append(&entry)?;
+        let reader = Reader::new(&meta, path.clone());
+        let writer = Writer::new();
 
-    self.memtable.put(record);
-    Ok(())
-  }
-
-  pub fn delete(&mut self, table: String, id: String) -> Result<()> {
-    let seqno = seqno::allocate();
-    let record = Record::new_tombstone(id, seqno);
-    
-    let entry = WalEntry::new(WalOp::Delete, table, record.id.clone(), seqno, Some(record.clone()));
-    self.wal.append(&entry)?;
-
-    self.memtable.put(record);
-    Ok(())
-  }
-
-  pub fn get(&self, table: String, id: &str) -> Option<&Record> {
-    let snapshot_seqno = seqno::current();
-
-    if let Some(rec) = self.memtable.get(id, snapshot_seqno) {
-      if rec.is_tombstone() {
-        return None;
-      } else {
-        return Some(rec);
-      }
+        Ok(Self {
+            memtable,
+            wal,
+            reader,
+            writer,
+            meta,
+            data_dir: path,
+        })
     }
 
-    None
-  }
+    pub fn put(&mut self, id: String, value: BTreeMap<String, FieldValue>) -> Result<()> {
+        self.writer.put(&mut self.memtable, &mut self.wal, id, value)
+    }
 
+    pub fn delete(&mut self, id: String) -> Result<()> {
+        self.writer.delete(&mut self.memtable, &mut self.wal, id)
+    }
 
-  pub fn update(&mut self, table: String, id: String, new_data: Vec<(String, FieldValue)>) -> Result<()> {
-    let seqno = seqno::allocate();
+    pub fn get(&self, id: &str, snapshot: u64) -> Option<Record> {
+        self.reader.get(&self.memtable, id, snapshot)
+    }
 
-    let record = Record::from_pairs(id, seqno, new_data);
-
-    let wal_entry = WalEntry::new(WalOp::Update, table, record.id.clone(), seqno, Some(record.clone()));
-    self.wal.append(&wal_entry)?;
-
-    self.memtable.put(record);
-    Ok(())
-  }
+    pub fn flush(&mut self) -> Result<()> {
+        let pages = self.writer.flush(&mut self.memtable, &self.data_dir)?;
+        self.meta.add_pages(pages);
+        self.meta.persist(self.data_dir.join("meta.json"))?;
+        Ok(())
+    }
 }

@@ -33,6 +33,6 @@ fn memtable_delete_creates_tombstone() {
     let tom = Record::new_tombstone("k", 10);
     mem.put(tom);
 
-    let rec = mem.get("k", 10).unwrap();
-    assert!(rec.is_tombstone);
+    let rec = mem.get("k", 10);
+    assert_eq!(rec, None);
 }

@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 use crate::storage::record::Record;
+use std::cmp::Ordering;
 
 #[derive(Debug)]
 pub struct MemTable {
-  pub data: BTreeMap<String, Record>,
+  pub data: BTreeMap<String, Vec<Record>>,
 }
 
 impl MemTable {
@@ -14,14 +15,23 @@ impl MemTable {
   }
 
   pub fn put(&mut self, record: Record) {
-    self.data.insert(record.id.clone(), record);
+    self.data.entry(record.id.clone()).or_default().push(record);
   }
 
   pub fn get(&self, id: &str, snapshot_seqno: u64) -> Option<&Record> {
-    match self.data.get(id) {
-      Some(rec) if rec.seqno <= snapshot_seqno => Some(rec),
-      _ => None,
+    let versions = self.data.get(id)?;
+
+    for record in versions.iter().rev() {
+        if record.seqno <= snapshot_seqno {
+            if record.is_tombstone {
+                return None;
+            } else {
+                return Some(record);
+            }
+        }
     }
+
+    None
   }
 
   pub fn len(&self) -> usize {
@@ -32,8 +42,12 @@ impl MemTable {
     self.data.is_empty()
   }
 
-  pub fn iter(&self) -> impl Iterator<Item = &Record> {
-    self.data.values()
+  pub fn iter(&self) -> impl Iterator<Item = (&String, &Vec<Record>)> {
+    self.data.iter()
+  }
+
+  pub fn clear(&mut self) {
+    self.data.clear();
   }
 }
 

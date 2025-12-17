@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::storage::page::builder::Page;
 use crate::storage::page::reader::read_page;

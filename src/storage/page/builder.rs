@@ -11,6 +11,7 @@ pub struct Page {
   pub payload: Vec<u8>, // Serialized records
 }
 
+#[derive(Debug, Clone)]
 pub struct PageBuilder {
   records: Vec<Record>,
 }
