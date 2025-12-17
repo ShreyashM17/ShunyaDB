@@ -55,4 +55,17 @@ impl Engine {
 
     None
   }
+
+
+  pub fn update(&mut self, table: String, id: String, new_data: Vec<(String, FieldValue)>) -> Result<()> {
+    let seqno = seqno::allocate();
+
+    let record = Record::from_pairs(id, seqno, new_data);
+
+    let wal_entry = WalEntry::new(WalOp::Update, table, record.id.clone(), seqno, Some(record.clone()));
+    self.wal.append(&wal_entry)?;
+
+    self.memtable.put(record);
+    Ok(())
+  }
 }
