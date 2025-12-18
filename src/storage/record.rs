@@ -1,118 +1,115 @@
-use crate::engine::filter::Filter;
-use crate::util::from_pairs_to_btree;
 use serde::{Deserialize, Serialize};
-use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use ordered_float::NotNan;
+use std::convert::TryFrom;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone)]
+pub struct FloatConversionError(pub &'static str);
+
+impl std::fmt::Display for FloatConversionError {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "FloatConversionError: {}", self.0)
+  }
+}
+
+impl std::error::Error for FloatConversionError {}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FieldValue {
-    Int(i64),
-    Float(f64),
-    Bool(bool),
-    Text(String),
+  Null,
+  Bool(bool),
+  Int(i64),
+  UInt(u64),
+  Float(NotNan<f64>),
+  Str(String),
 }
 
-impl FieldValue {
-    pub fn from_str_infer(s: &str) -> Self {
-        if let Ok(i) = s.parse::<i64>() {
-            FieldValue::Int(i)
-        } else if let Ok(f) = s.parse::<f64>() {
-            FieldValue::Float(f)
-        } else if s.eq_ignore_ascii_case("true") || s.eq_ignore_ascii_case("false") {
-            FieldValue::Bool(s.eq_ignore_ascii_case("true"))
-        } else {
-            FieldValue::Text(s.to_string())
-        }
-    }
-
-    pub fn equals(&self, other: &FieldValue) -> bool {
-        match (self, other) {
-            (FieldValue::Int(a), FieldValue::Int(b)) => a == b,
-            (FieldValue::Float(a), FieldValue::Float(b)) => a == b,
-            (FieldValue::Int(a), FieldValue::Float(b)) => (*a as f64) == *b,
-            (FieldValue::Float(a), FieldValue::Int(b)) => *a == (*b as f64),
-            (FieldValue::Text(a), FieldValue::Text(b)) => a == b,
-            (FieldValue::Bool(a), FieldValue::Bool(b)) => a == b,
-            _ => false,
-        }
-    }
-
-    /// Numeric comparison when both are numeric (Int/Float). Returns None if not comparable.
-    pub fn numeric_cmp(&self, other: &FieldValue) -> Option<Ordering> {
-        match (self, other) {
-            (FieldValue::Int(a), FieldValue::Int(b)) => Some(a.cmp(b)),
-            (FieldValue::Float(a), FieldValue::Float(b)) => a.partial_cmp(b),
-            (FieldValue::Int(a), FieldValue::Float(b)) => (*a as f64).partial_cmp(b),
-            (FieldValue::Float(a), FieldValue::Int(b)) => a.partial_cmp(&(*b as f64)),
-            _ => None,
-        }
-    }
+impl From<&str> for FieldValue {
+  fn from(s: &str) -> Self {
+    FieldValue::Str(s.to_owned())
+  }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+impl From<String> for FieldValue {
+  fn from(s: String) -> Self {
+    FieldValue::Str(s)
+  }
+}
+
+impl From<i64> for FieldValue {
+  fn from(i: i64) -> Self {
+    FieldValue::Int(i)
+  }
+}
+
+impl From<u64> for FieldValue {
+  fn from(u: u64) -> Self {
+    FieldValue::UInt(u)
+  }
+}
+
+/// Convenience (panics on NaN). Use only in tests or internal helpers.
+// impl From<f64> for FieldValue {
+//   fn from(v: f64) -> Self {
+//     FieldValue::Float(NotNan::new(v).expect("float cannot be NaN"))
+//   }
+// }
+
+impl TryFrom<f64> for FieldValue {
+  type Error = FloatConversionError;
+
+  fn try_from(v: f64) -> Result<Self, Self::Error> {
+    NotNan::new(v)
+      .map(FieldValue::Float)
+      .map_err(|_| FloatConversionError("float value is NaN; FieldValue::Float rquires non-NaN"))
+  }
+}
+
+/// Core record type for storage layer.
+/// `id` is the primary key (string for flexibility), `seqno` is the global sequence number.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Record {
-    pub id: u64,
-    pub data: BTreeMap<String, FieldValue>,
+  pub id: String,
+  pub seqno: u64,
+  pub is_tombstone: bool,
+  pub data: BTreeMap<String, FieldValue>,
 }
 
 impl Record {
-    pub fn new(id: u64, data: BTreeMap<String, FieldValue>) -> Self {
-        Self { id, data }
+  /// Create a new record (nn-tmbstone)
+  pub fn new(id: impl Into<String>, seqno: u64, data: BTreeMap<String, FieldValue>) -> Self {
+    Self {
+      id: id.into(),
+      seqno,
+      is_tombstone: false,
+      data,
     }
+  }
 
-    pub fn get(&self, key: &str) -> Option<&FieldValue> {
-        self.data.get(key)
+  /// Create a tombstone record for deletion.
+  pub fn new_tombstone(id: impl Into<String>, seqno: u64) -> Self {
+    Self {
+      id: id.into(),
+      seqno,
+      is_tombstone: true,
+      data: BTreeMap::new(),
     }
+  }
 
-    // Convert cli inputs from ["name=XYZ", "age=32"] = BTree<name, XYZ>
-    pub fn from_pairs(pairs: Vec<String>) -> Self {
-        use std::time::{SystemTime, UNIX_EPOCH};
-        let id = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_micros() as u64;
-        let fields = from_pairs_to_btree(pairs);
-        Record::new(id, fields)
+  pub fn from_pairs<I, K, V>(id: impl Into<String>, seqno: u64, pairs: I) -> Self 
+  where
+    I: IntoIterator<Item = (K, V)>,
+    K: Into<String>,
+    V: Into<FieldValue>,
+  {
+    let mut map = BTreeMap::new();
+    for (k,v) in pairs {
+      map.insert(k.into(), v.into());
     }
+    Self::new(id, seqno, map)
+  }
 
-    pub fn matches(&self, filter: &Filter) -> bool {
-        use Filter::*;
-        match filter {
-            ById(fid) => self.id == *fid,
-            ByKeyValueEq(k, v) => self.matches_eq(k, v),
-            ByKeyValueOp(k, op, v) => self.matches_numeric_op(k, v, op),
-        }
-    }
-
-    pub fn matches_eq(&self, key: &str, val: &FieldValue) -> bool {
-        match self.get(key) {
-            Some(existing) => existing.equals(val),
-            None => false,
-        }
-    }
-
-    /// example for numeric comparison operators: ">" "<" ">=" "<="
-    pub fn matches_numeric_op(&self, key: &str, other: &FieldValue, op: &str) -> bool {
-        if let Some(existing) = self.data.get(key) {
-            if let Some(ord) = existing.numeric_cmp(other) {
-                match op {
-                    ">" => ord == Ordering::Greater,
-                    "<" => ord == Ordering::Less,
-                    ">=" => ord == Ordering::Greater || ord == Ordering::Equal,
-                    "<=" => ord == Ordering::Less || ord == Ordering::Equal,
-                    _ => false,
-                }
-            } else {
-                false
-            }
-        } else {
-            false
-        }
-    }
-
-    pub fn apply_patch(&mut self, patch: &BTreeMap<String, FieldValue>) {
-        for (k, v) in patch {
-            self.data.insert(k.clone(), v.clone());
-        }
-    }
+  pub fn is_tombstone(&self) -> bool {
+    self.is_tombstone
+  }
 }
