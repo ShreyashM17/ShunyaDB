@@ -11,7 +11,7 @@ pub struct Page {
   pub payload: Vec<u8>, // Serialized records
 }
 
-#[derive(Debug, Clone)]
+/// Builder for creating immutable pages
 pub struct PageBuilder {
   records: Vec<Record>,
 }

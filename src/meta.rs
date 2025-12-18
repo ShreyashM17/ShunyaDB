@@ -32,9 +32,21 @@ impl PageInfo {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableMeta {
+    pub version: u32,
     pub pages: Vec<PageInfo>,
+    pub checkpoint_seqno: u64,
+}
+
+impl Default for TableMeta {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            pages: Vec::new(),
+            checkpoint_seqno: 0,
+        }
+    }
 }
 
 impl TableMeta {
@@ -54,6 +66,9 @@ impl TableMeta {
     }
 
     pub fn add_pages(&mut self, new_pages: Vec<PageInfo>) {
+        for p in &new_pages {
+            self.checkpoint_seqno = self.checkpoint_seqno.max(p.max_seqno);
+        }
         self.pages.extend(new_pages);
     }
 }

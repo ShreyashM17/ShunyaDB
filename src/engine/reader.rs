@@ -6,31 +6,30 @@ use crate::storage::page::io::read_page_from_disk;
 use std::path::PathBuf;
 
 pub struct Reader {
-    meta: TableMeta,
     data_dir: PathBuf,
 }
 
 impl Reader {
-    pub fn new(meta: &TableMeta, dir: PathBuf) -> Self {
+    pub fn new(dir: PathBuf) -> Self {
         Self {
-            meta: meta.clone(),
             data_dir: dir,
         }
     }
 
     pub fn get(
         &self,
+        meta: &TableMeta,
         memtable: &MemTable,
         id: &str,
         snapshot: u64,
     ) -> Option<Record> {
-        // 1️⃣ Memtable first
+        // Memtable first
         if let Some(rec) = memtable.get(id, snapshot) {
             return Some(rec.clone());
         }
 
-        // 2️⃣ Immutable pages (newest → oldest)
-        for page_info in self.meta.pages.iter().rev() {
+        // Immutable pages (newest → oldest)
+        for page_info in meta.pages.iter().rev() {
             if id < page_info.min_id.as_str() || id > page_info.max_id.as_str() {
                 continue;
             }

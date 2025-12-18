@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 use crate::storage::record::Record;
-use std::cmp::Ordering;
 
 #[derive(Debug)]
 pub struct MemTable {
