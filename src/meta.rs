@@ -2,40 +2,12 @@ use serde::{Serialize, Deserialize};
 use anyhow::Result;
 use std::fs;
 use std::path::Path;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PageInfo {
-    pub page_id: u64,
-    pub file_name: String,
-    pub min_id: String,
-    pub max_id: String,
-    pub num_records: usize,
-    pub max_seqno: u64,
-}
-
-impl PageInfo {
-    pub fn new(
-        page_id: u64,
-        min_id: String,
-        max_id: String,
-        num_records: usize,
-        max_seqno: u64,
-    ) -> Self {
-        Self {
-            page_id,
-            file_name: format!("page_{}.db", page_id),
-            min_id,
-            max_id,
-            num_records,
-            max_seqno,
-        }
-    }
-}
+use crate::lsm::level::PageMeta;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableMeta {
     pub version: u32,
-    pub pages: Vec<PageInfo>,
+    pub pages: Vec<PageMeta>,
     pub checkpoint_seqno: u64,
 }
 
@@ -65,7 +37,7 @@ impl TableMeta {
         Ok(())
     }
 
-    pub fn add_pages(&mut self, new_pages: Vec<PageInfo>) {
+    pub fn add_pages(&mut self, new_pages: Vec<PageMeta>) {
         for p in &new_pages {
             self.checkpoint_seqno = self.checkpoint_seqno.max(p.max_seqno);
         }

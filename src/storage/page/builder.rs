@@ -14,12 +14,14 @@ pub struct Page {
 /// Builder for creating immutable pages
 pub struct PageBuilder {
   records: Vec<Record>,
+  current_size_bytes: usize
 }
 
 impl PageBuilder {
   pub fn new() -> Self {
     Self {
       records: Vec::new(),
+      current_size_bytes: 100, // initial header size estimate (bytes)
     }
   }
 
@@ -56,5 +58,18 @@ impl PageBuilder {
       records: self.records,
       payload,
     }
+  }
+
+  pub fn estimate_size(&self, record: &Record) -> usize {
+    let record_size = bincode::serialized_size(record).unwrap() as usize;
+    record_size
+  }
+
+  pub fn estimate_size_with(&self, record: &Record) -> usize {
+    self.current_size_bytes + self.estimate_size(record)
+  }
+
+  pub fn update_size(&mut self, record: &Record) {
+    self.current_size_bytes = self.estimate_size_with(record);
   }
 }
