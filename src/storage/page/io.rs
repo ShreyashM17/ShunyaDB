@@ -55,7 +55,11 @@ pub fn read_page_from_disk(path: impl AsRef<Path>) -> Result<Page> {
 pub fn delete_older_pages(dir: &Path, pages_to_be_removed: Vec<PageMeta>) -> Result<()>{
   for page in pages_to_be_removed {
     let path = dir.join(page.file_name);
-    fs::remove_file(path)?;
+    if let Err(e) = fs::remove_file(&path) {
+      if e.kind() != std::io::ErrorKind::NotFound {
+          return Err(e.into());
+      }
+    }
   }
 
   Ok(())
