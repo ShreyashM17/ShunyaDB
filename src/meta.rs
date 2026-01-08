@@ -74,9 +74,6 @@ impl TableMeta {
     }
 
     pub fn add_pages(&mut self, new_pages: Vec<PageMeta>) {
-        for p in &new_pages {
-            self.checkpoint_seqno = self.checkpoint_seqno.max(p.max_seqno);
-        }
         self.level[0].extend(new_pages);
     }
 }

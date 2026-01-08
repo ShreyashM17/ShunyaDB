@@ -22,7 +22,7 @@ fn wal_recovery_works() {
         engine.flush().unwrap();
     }
 
-    let engine = Engine::open(dir.path()).unwrap();
+    let mut engine = Engine::open(dir.path()).unwrap();
     let snapshot = seqno::current();
 
     let rec = engine.get("1", snapshot).unwrap();

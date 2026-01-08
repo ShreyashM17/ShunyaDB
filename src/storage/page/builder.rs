@@ -4,7 +4,7 @@ use crate::storage::record::Record;
 
 
 // In-memory page representation
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Page {
   pub header: PageHeader,
   pub records: Vec<Record>,

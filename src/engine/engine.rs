@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Ok, Result};
 use std::path::{Path, PathBuf};
 use std::collections::BTreeMap;
 use crate::storage::record::Record;
@@ -8,19 +8,24 @@ use crate::engine::recovery::recover;
 use crate::storage::memtable::MemTable;
 use crate::storage::record::FieldValue;
 use crate::storage::wal::Wal;
+use crate::storage::page::builder::Page;
 use crate::meta::{TableMeta, PageMeta};
 use crate::lsm::compaction_plan::plan_l0_to_l1;
 use crate::lsm::compaction::execute_l0_to_l1;
 use crate::storage::page::io::delete_older_pages;
+use crate::cache::lru::LruCache;
 
 pub struct Engine {
+    page_cache: LruCache<u64, Page>,
     memtable: MemTable,
-    wal: Wal,
+    pub wal: Wal,
     reader: Reader,
     writer: Writer,
-    meta: TableMeta,
+    pub meta: TableMeta,
     data_dir: PathBuf,
 }
+
+const MEMTABLE_FLUSH_BYTES: usize = 32 * 1024; // 32 KB
 
 impl Engine {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
@@ -50,6 +55,7 @@ impl Engine {
         }
 
         Ok(Self {
+            page_cache: LruCache::new(128),
             memtable,
             wal,
             reader,
@@ -60,15 +66,24 @@ impl Engine {
     }
 
     pub fn put(&mut self, id: String, value: BTreeMap<String, FieldValue>) -> Result<()> {
+        self.maybe_flush()?;
         self.writer.put(&mut self.memtable, &mut self.wal, id, value)
     }
 
     pub fn delete(&mut self, id: String) -> Result<()> {
+        self.maybe_flush()?;
         self.writer.delete(&mut self.memtable, &mut self.wal, id)
     }
 
-    pub fn get(&self, id: &str, snapshot: u64) -> Option<Record> {
-        self.reader.get(&self.meta, &self.memtable, id, snapshot)
+    pub fn get(&mut self, id: &str, snapshot: u64) -> Option<Record> {
+        self.reader.get(&self.meta, &self.memtable, id, snapshot, &mut self.page_cache)
+    }
+
+    pub fn maybe_flush(&mut self) -> Result<()> {
+        if self.memtable.approx_size_bytes() > MEMTABLE_FLUSH_BYTES {
+            self.flush()?;
+        }
+        Ok(())
     }
 
     pub fn flush(&mut self) -> Result<()> {
@@ -76,6 +91,7 @@ impl Engine {
         let (next_page_id, pages_meta) = self.writer.flush(&mut self.memtable, &self.data_dir, &current_page_id)?;
         self.meta.add_pages(pages_meta);
         self.meta.current_page_id = next_page_id;
+        self.maybe_checkpoint_wal()?;
         self.meta.persist(self.data_dir.join("meta.json"))?;
         Ok(())
     }
@@ -100,9 +116,32 @@ impl Engine {
             }
 
             self.meta.current_page_id = current_page_id;
+            println!("Compaction");
+            self.maybe_checkpoint_wal()?;
             self.meta.persist(self.data_dir.join("meta.json"))?;
             delete_older_pages(&self.data_dir, obsolete_pages)?;
         }
         Ok(())
+    }
+
+    
+    pub fn maybe_checkpoint_wal(&mut self) -> Result<()> {
+        let checkpoint_number = self.compute_checkpoint_seqno()?;
+        if checkpoint_number <= self.meta.checkpoint_seqno {
+            return Ok(());
+        }
+        self.wal.rewrite_to(checkpoint_number)?;
+        self.meta.checkpoint_seqno = checkpoint_number;
+        Ok(())
+    }
+
+    pub fn compute_checkpoint_seqno(&mut self) -> Result<u64> {
+        let checkpoint = self.meta.level
+            .iter()
+            .flat_map(|lvl| lvl.iter())
+            .map(|p| p.max_seqno)
+            .min()
+            .unwrap_or(0);
+    Ok(checkpoint)
     }
 }

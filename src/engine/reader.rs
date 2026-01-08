@@ -1,4 +1,6 @@
+use crate::cache::lru::LruCache;
 use crate::storage::memtable::MemTable;
+use crate::storage::page::builder::Page;
 use crate::storage::record::Record;
 use crate::meta::TableMeta;
 use crate::storage::page::io::read_page_from_disk;
@@ -22,6 +24,7 @@ impl Reader {
         memtable: &MemTable,
         id: &str,
         snapshot: u64,
+        page_cache: &mut LruCache<u64, Page>
     ) -> Option<Record> {
         // Memtable first
         if let Some(rec) = memtable.get(id, snapshot) {
@@ -35,8 +38,14 @@ impl Reader {
                     continue;
                 }
 
-                let path = self.data_dir.join(&page_info.file_name);
-                let page = read_page_from_disk(&path).ok()?;
+                let page = if let Some(p) = page_cache.get(&page_info.page_id) {
+                    p.clone()
+                } else {
+                    let path = self.data_dir.join(&page_info.file_name);
+                    let p = read_page_from_disk(&path).ok()?;
+                    page_cache.put(page_info.page_id, p.clone());
+                    p
+                };
 
                 for rec in page.records.iter().rev() {
                     if rec.id == id && rec.seqno <= snapshot {
