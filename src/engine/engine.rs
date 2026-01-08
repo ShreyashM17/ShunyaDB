@@ -8,7 +8,10 @@ use crate::engine::recovery::recover;
 use crate::storage::memtable::MemTable;
 use crate::storage::record::FieldValue;
 use crate::storage::wal::Wal;
-use crate::meta::TableMeta;
+use crate::meta::{TableMeta, PageMeta};
+use crate::lsm::compaction_plan::plan_l0_to_l1;
+use crate::lsm::compaction::execute_l0_to_l1;
+use crate::storage::page::io::delete_older_pages;
 
 pub struct Engine {
     memtable: MemTable,
@@ -69,9 +72,32 @@ impl Engine {
     }
 
     pub fn flush(&mut self) -> Result<()> {
-        let pages = self.writer.flush(&mut self.memtable, &self.data_dir)?;
-        self.meta.add_pages(pages);
+        let current_page_id = self.meta.current_page_id;
+        let (next_page_id, pages_meta) = self.writer.flush(&mut self.memtable, &self.data_dir, &current_page_id)?;
+        self.meta.add_pages(pages_meta);
+        self.meta.current_page_id = next_page_id;
         self.meta.persist(self.data_dir.join("meta.json"))?;
+        Ok(())
+    }
+
+    pub fn maybe_compact(&mut self) -> Result<()> {
+        if let Some(plan) = plan_l0_to_l1(&self.meta) {
+            let (current_page_id,new_pages) = execute_l0_to_l1(plan, &self.data_dir)?;
+
+            let pages_at_level_0: Vec<PageMeta> = self.meta.level[0].clone();
+            self.meta.level[0].clear();
+            self.meta.level[1].retain(|p| {
+                !new_pages.iter().any(|np| np.overlaps(p))
+            });
+
+            for p in new_pages {
+                self.meta.level[1].push(p);
+            }
+
+            self.meta.current_page_id = current_page_id;
+            self.meta.persist(self.data_dir.join("meta.json"))?;
+            delete_older_pages(&self.data_dir, pages_at_level_0)?;
+        }
         Ok(())
     }
 }

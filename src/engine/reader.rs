@@ -29,21 +29,23 @@ impl Reader {
         }
 
         // Immutable pages (newest → oldest)
-        for page_info in meta.pages.iter().rev() {
-            if id < page_info.min_id.as_str() || id > page_info.max_id.as_str() {
-                continue;
-            }
+        for pages_at_level in meta.level.iter() {
+            for page_info in pages_at_level.iter().rev() {
+                if id < page_info.min_id.as_str() || id > page_info.max_id.as_str() {
+                    continue;
+                }
 
-            let path = self.data_dir.join(&page_info.file_name);
-            let page = read_page_from_disk(&path).ok()?;
+                let path = self.data_dir.join(&page_info.file_name);
+                let page = read_page_from_disk(&path).ok()?;
 
-            for rec in page.records.iter().rev() {
-                if rec.id == id && rec.seqno <= snapshot {
-                    return if rec.is_tombstone {
-                        None
-                    } else {
-                        Some(rec.clone())
-                    };
+                for rec in page.records.iter().rev() {
+                    if rec.id == id && rec.seqno <= snapshot {
+                        return if rec.is_tombstone {
+                            None
+                        } else {
+                            Some(rec.clone())
+                        };
+                    }
                 }
             }
         }

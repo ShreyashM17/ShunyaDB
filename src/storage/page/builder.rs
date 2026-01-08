@@ -72,4 +72,9 @@ impl PageBuilder {
   pub fn update_size(&mut self, record: &Record) {
     self.current_size_bytes = self.estimate_size_with(record);
   }
+
+  pub fn is_empty(&self) -> bool {
+    self.records.is_empty()
+  }
+
 }

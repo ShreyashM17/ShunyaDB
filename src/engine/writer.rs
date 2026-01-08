@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use crate::engine::seqno::allocate;
-use crate::lsm::level::PageMeta;
+use crate::meta::PageMeta;
 use crate::storage::memtable::MemTable;
 use crate::storage::page::builder::{PageBuilder, Page};
 use crate::storage::page::io::write_page;
@@ -11,7 +11,7 @@ use crate::storage::record::{FieldValue, Record};
 use crate::storage::wal::{Wal, WalEntry, WalOp};
 
 const MAX_RECORDS_PER_PAGE: usize = 1024;
-const MAX_PER_PAGE_SIZE: usize = 32768; // 32 KB for L0
+const MAX_PER_PAGE_SIZE: usize = 32 * 1024; // 32 KB for L0
 
 pub struct Writer;
 
@@ -55,10 +55,12 @@ impl Writer {
         &self,
         memtable: &mut MemTable,
         dir: &Path,
-    ) -> Result<Vec<PageMeta>> {
+        next_page_id: &u64,
+    ) -> Result<(u64, Vec<PageMeta>)> {
+        let mut next_page_id = next_page_id.clone();
         let mut builder = PageBuilder::new();
         let mut count = 0;
-        let mut pages = Vec::new();
+        let mut pagesmeta = Vec::new();
 
         for (_id, versions) in memtable.iter() {
             for record in versions {
@@ -66,9 +68,10 @@ impl Writer {
 
                 if estimated_size > MAX_PER_PAGE_SIZE {
                     let page = builder.build();
-                    pages.push(self.flush_one(&page, dir)?);
+                    pagesmeta.push(self.flush_one(&page, dir, &next_page_id)?);
                     builder = PageBuilder::new();
                     count = 0;
+                    next_page_id = next_page_id + 1;
                 }
 
                 builder.add(record.clone());
@@ -77,34 +80,35 @@ impl Writer {
 
                 if count >= MAX_RECORDS_PER_PAGE {
                     let page = builder.build();
-                    pages.push(self.flush_one(&page, dir)?);
+                    pagesmeta.push(self.flush_one(&page, dir, &next_page_id)?);
                     builder = PageBuilder::new();
                     count = 0;
+                    next_page_id = next_page_id + 1;
                 }
             }
         }
 
         if count > 0 {
             let page = builder.build();
-            pages.push(self.flush_one(&page, dir)?);
+            pagesmeta.push(self.flush_one(&page, dir, &mut &next_page_id)?);
+            next_page_id = next_page_id + 1;
         }
 
         memtable.clear();
-        Ok(pages)
+        Ok((next_page_id, pagesmeta))
     }
 
     fn flush_one(
         &self,
         page: &Page,
         dir: &Path,
+        page_id: &u64
     ) -> Result<PageMeta> {
-        let page_id = page.header.page_seqno;
-
         let path = dir.join(format!("page_{}.db", page_id));
         let page_size = write_page(&path, &page)?;
 
         Ok(PageMeta::new(
-            page_id,
+            *page_id,
             page.header.min_id.clone(),
             page.header.max_id.clone(),
             page.header.num_records as usize,

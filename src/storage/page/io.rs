@@ -1,7 +1,8 @@
 use anyhow::Result;
-use std::fs::{File, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use crate::meta::PageMeta;
 use crate::storage::page::builder::Page;
 use crate::storage::page::reader::read_page;
 
@@ -49,6 +50,16 @@ pub fn read_page_from_disk(path: impl AsRef<Path>) -> Result<Page> {
   read_page(&bytes)
 }
 
+
+/// Delete older pages which have been moved to other level
+pub fn delete_older_pages(dir: &Path, pages_to_be_removed: Vec<PageMeta>) -> Result<()>{
+  for page in pages_to_be_removed {
+    let path = dir.join(page.file_name);
+    fs::remove_file(path);
+  }
+
+  Ok(())
+}
 
 #[cfg(test)]
 mod tests {

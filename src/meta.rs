@@ -2,21 +2,57 @@ use serde::{Serialize, Deserialize};
 use anyhow::Result;
 use std::fs;
 use std::path::Path;
-use crate::lsm::level::PageMeta;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PageMeta {
+    pub page_id: u64,
+    pub file_name: String,
+    pub min_id: String,
+    pub max_id: String,
+    pub number_of_records: usize,
+    pub size_bytes: u64,
+    pub max_seqno: u64,
+}
+
+impl PageMeta {
+    pub fn new(
+        page_id: u64,
+        min_id: String,
+        max_id: String,
+        number_of_records: usize,
+        size_bytes: u64,
+        max_seqno: u64,
+    ) -> Self {
+        Self {
+            page_id,
+            file_name: format!("page_{}.db", page_id),
+            min_id,
+            max_id,
+            number_of_records,
+            size_bytes,
+            max_seqno,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableMeta {
     pub version: u32,
-    pub pages: Vec<PageMeta>,
+    pub level: Vec<Vec<PageMeta>>,
     pub checkpoint_seqno: u64,
+    pub current_page_id: u64,
 }
 
 impl Default for TableMeta {
     fn default() -> Self {
         Self {
             version: 1,
-            pages: Vec::new(),
+            level: vec![
+                Vec::new(),
+                Vec::new()
+            ],
             checkpoint_seqno: 0,
+            current_page_id: 0,
         }
     }
 }
@@ -41,6 +77,6 @@ impl TableMeta {
         for p in &new_pages {
             self.checkpoint_seqno = self.checkpoint_seqno.max(p.max_seqno);
         }
-        self.pages.extend(new_pages);
+        self.level[0].extend(new_pages);
     }
 }

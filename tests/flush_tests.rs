@@ -7,13 +7,13 @@ use shunyadb::storage::page::io::read_page_from_disk;
 #[test]
 fn memtable_flush_creates_page_and_clears_memtable() {
     let dir = tempdir().unwrap();
-    let page_path = dir.path().join("page_1.pg");
+    let page_path = dir.path().join("page_0.db");
 
     let mut mem = MemTable::new();
     mem.put(Record::from_pairs("a", 1, vec![("v", FieldValue::Int(1))]));
     mem.put(Record::from_pairs("b", 2, vec![("v", FieldValue::Int(2))]));
 
-    flush_memtable(&mut mem, &page_path).unwrap();
+    flush_memtable(&mut mem, &dir).unwrap();
 
     assert!(mem.is_empty());
 
@@ -26,10 +26,9 @@ fn memtable_flush_creates_page_and_clears_memtable() {
 #[test]
 fn flushing_empty_memtable_fails() {
     let dir = tempdir().unwrap();
-    let page_path = dir.path().join("page.pg");
 
     let mut mem = MemTable::new();
-    let result = flush_memtable(&mut mem, &page_path);
+    let result = flush_memtable(&mut mem, &dir);
 
     assert!(result.is_err());
 }
