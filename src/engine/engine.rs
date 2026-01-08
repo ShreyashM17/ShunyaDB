@@ -82,9 +82,14 @@ impl Engine {
 
     pub fn maybe_compact(&mut self) -> Result<()> {
         if let Some(plan) = plan_l0_to_l1(&self.meta) {
-            let (current_page_id,new_pages) = execute_l0_to_l1(plan, &self.data_dir)?;
+            let obsolete_pages: Vec<PageMeta> = plan.input_l0_pages
+                                                    .iter()
+                                                    .chain(plan.input_l1_pages.iter())
+                                                    .cloned()
+                                                    .collect();
 
-            let pages_at_level_0: Vec<PageMeta> = self.meta.level[0].clone();
+            let (current_page_id,new_pages) = execute_l0_to_l1(plan, &self.data_dir)?;
+            
             self.meta.level[0].clear();
             self.meta.level[1].retain(|p| {
                 !new_pages.iter().any(|np| np.overlaps(p))
@@ -96,7 +101,7 @@ impl Engine {
 
             self.meta.current_page_id = current_page_id;
             self.meta.persist(self.data_dir.join("meta.json"))?;
-            delete_older_pages(&self.data_dir, pages_at_level_0)?;
+            delete_older_pages(&self.data_dir, obsolete_pages)?;
         }
         Ok(())
     }
