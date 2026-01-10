@@ -46,7 +46,7 @@ pub struct Engine {
     writer: Writer,
     pub meta: TableMeta,
     data_dir: PathBuf,
-    metrics: EngineMetrics
+    pub metrics: EngineMetrics
 }
 
 const MEMTABLE_FLUSH_BYTES: usize = 32 * 1024; // 32 KB
@@ -120,7 +120,6 @@ impl Engine {
     }
 
     pub fn flush(&mut self) -> Result<()> {
-        println!("Flushing");
         self.metrics.flushes += 1;
         let current_page_id = self.meta.current_page_id;
         let (next_page_id, pages_meta) = self.writer.flush(&mut self.memtable, &self.data_dir, &current_page_id)?;
@@ -152,7 +151,6 @@ impl Engine {
             }
 
             self.meta.current_page_id = current_page_id;
-            println!("Compaction");
             self.maybe_checkpoint_wal()?;
             self.meta.persist(self.data_dir.join("meta.json"))?;
             delete_older_pages(&self.data_dir, obsolete_pages)?;
