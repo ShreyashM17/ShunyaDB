@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 
+use crate::engine::engine::EngineMetrics;
+
 /// Internal doubly-linked list node (key-based, no references)
 struct Node<K, V> {
     key: K,
@@ -48,7 +50,7 @@ where
         self.map.get(&key).map(|n| &n.value)
     }
 
-    pub fn put(&mut self, key: K, value: V) {
+    pub fn put(&mut self, key: K, value: V, metrics: &mut EngineMetrics) {
         if self.map.contains_key(&key) {
             // Update existing
             if let Some(node) = self.map.get_mut(&key) {
@@ -61,6 +63,7 @@ where
         // Evict if needed
         if self.map.len() == self.capacity {
             self.evict_lru();
+            metrics.page_cache_evictions += 1;
         }
 
         // Insert new node at head
