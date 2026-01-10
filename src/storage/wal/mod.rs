@@ -111,6 +111,68 @@ impl Wal {
     }
     Ok(entries)
   }
+
+  pub fn rewrite_to(&mut self, checkpoint: u64) -> Result<()> {
+    let wal_path = Path::new(&self.path);
+    let tmp_file = wal_path.with_extension("rewrite_wal");
+
+    let mut old = File::open(wal_path)?;
+
+    let mut new = OpenOptions::new()
+                      .create(true)
+                      .truncate(true)
+                      .write(true)
+                      .open(&tmp_file)?;
+    
+    loop {
+      // Read length
+      let mut len_buf = [0u8; 8];
+      if old.read_exact(&mut len_buf).is_err() {
+        break;
+      }
+
+      let len = u64::from_le_bytes(len_buf) as usize;
+
+      // Read payload
+      let mut payload = vec![0u8; len];
+      old.read_exact(&mut payload)?;
+
+
+      // Read trailing length
+      let mut len2_buf = [0u8; 8];
+      old.read_exact(&mut len2_buf)?;
+
+      let len_2 = u64::from_le_bytes(len2_buf) as usize;
+
+      if len != len_2 {
+        anyhow::bail!("Wal Corruption: Length mismatch")
+      }
+
+      // Deserialize entry
+      let entry: WalEntry = bincode::deserialize(&payload)?;
+
+      if entry.seqno > checkpoint {
+        new.write_all(&len_buf)?;
+        new.write_all(&payload)?;
+        new.write_all(&len2_buf)?;
+      }
+    }
+
+    new.sync_all()?;
+    drop(new);
+
+    // Atomically replace old Wal
+    std::fs::rename(&tmp_file, wal_path)?;
+
+    #[cfg(unix)]
+    {
+      if let Some(dir) = wal_path.parent() {
+        File::open(dir)?.sync_all()?;
+      }
+    }
+
+    Ok(())
+  }
 }
 
 #[cfg(test)]

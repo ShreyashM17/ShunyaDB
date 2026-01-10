@@ -74,7 +74,7 @@ fn restart_engine_reads_from_disk() {
     let base = std::path::Path::new("test_data/shunyadb_engine_test");
 
     // Restart (new Engine instance)
-    let engine = Engine::open(base).expect("engine reopen failed");
+    let mut engine = Engine::open(base).expect("engine reopen failed");
 
     let snapshot = shunyadb::engine::seqno::current();
 
@@ -110,7 +110,7 @@ fn update_and_delete_after_restart() {
     engine.flush().unwrap();
 
     // Restart again
-    let engine = Engine::open(base).unwrap();
+    let mut engine = Engine::open(base).unwrap();
 
     // Updated records
     for i in 0..500 {

@@ -4,21 +4,23 @@ use std::fs;
 use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PageInfo {
+pub struct PageMeta {
     pub page_id: u64,
     pub file_name: String,
     pub min_id: String,
     pub max_id: String,
-    pub num_records: usize,
+    pub number_of_records: usize,
+    pub size_bytes: u64,
     pub max_seqno: u64,
 }
 
-impl PageInfo {
+impl PageMeta {
     pub fn new(
         page_id: u64,
         min_id: String,
         max_id: String,
-        num_records: usize,
+        number_of_records: usize,
+        size_bytes: u64,
         max_seqno: u64,
     ) -> Self {
         Self {
@@ -26,7 +28,8 @@ impl PageInfo {
             file_name: format!("page_{}.db", page_id),
             min_id,
             max_id,
-            num_records,
+            number_of_records,
+            size_bytes,
             max_seqno,
         }
     }
@@ -35,16 +38,21 @@ impl PageInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableMeta {
     pub version: u32,
-    pub pages: Vec<PageInfo>,
+    pub level: Vec<Vec<PageMeta>>,
     pub checkpoint_seqno: u64,
+    pub current_page_id: u64,
 }
 
 impl Default for TableMeta {
     fn default() -> Self {
         Self {
             version: 1,
-            pages: Vec::new(),
+            level: vec![
+                Vec::new(),
+                Vec::new()
+            ],
             checkpoint_seqno: 0,
+            current_page_id: 0,
         }
     }
 }
@@ -65,10 +73,7 @@ impl TableMeta {
         Ok(())
     }
 
-    pub fn add_pages(&mut self, new_pages: Vec<PageInfo>) {
-        for p in &new_pages {
-            self.checkpoint_seqno = self.checkpoint_seqno.max(p.max_seqno);
-        }
-        self.pages.extend(new_pages);
+    pub fn add_pages(&mut self, new_pages: Vec<PageMeta>) {
+        self.level[0].extend(new_pages);
     }
 }

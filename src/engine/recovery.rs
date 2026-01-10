@@ -40,8 +40,9 @@ pub fn recover(
 
     // Flush recovered memtable into immutable pages
     if !memtable.is_empty() {
-        let pages = writer.flush(memtable, data_dir)?;
+        let (next_page_id,pages) = writer.flush(memtable, data_dir, &meta.current_page_id)?;
         meta.add_pages(pages);
+        meta.current_page_id = next_page_id;
     }
 
     meta.persist(data_dir.join("meta.json"))?;

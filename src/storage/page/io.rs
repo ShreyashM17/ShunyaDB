@@ -1,12 +1,13 @@
 use anyhow::Result;
-use std::fs::{File, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use crate::meta::PageMeta;
 use crate::storage::page::builder::Page;
 use crate::storage::page::reader::read_page;
 
 /// Write page to disk, files must not already exist since pages are immutable.
-pub fn write_page(path: impl AsRef<Path>, page: &Page) -> Result<()> {
+pub fn write_page(path: impl AsRef<Path>, page: &Page) -> Result<u64> {
   let path = path.as_ref();
 
   if path.exists() {
@@ -34,7 +35,9 @@ pub fn write_page(path: impl AsRef<Path>, page: &Page) -> Result<()> {
     File::open(dir)?.sync_all()?;
   }
 
-  Ok(())
+  let page_size_bytes = std::fs::metadata(path)?.len();
+
+  Ok (page_size_bytes)
 }
 
 
@@ -47,6 +50,20 @@ pub fn read_page_from_disk(path: impl AsRef<Path>) -> Result<Page> {
   read_page(&bytes)
 }
 
+
+/// Delete older pages which have been moved to other level
+pub fn delete_older_pages(dir: &Path, pages_to_be_removed: Vec<PageMeta>) -> Result<()>{
+  for page in pages_to_be_removed {
+    let path = dir.join(page.file_name);
+    if let Err(e) = fs::remove_file(&path) {
+      if e.kind() != std::io::ErrorKind::NotFound {
+          return Err(e.into());
+      }
+    }
+  }
+
+  Ok(())
+}
 
 #[cfg(test)]
 mod tests {

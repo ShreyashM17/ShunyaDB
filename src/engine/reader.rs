@@ -1,7 +1,10 @@
+use crate::cache::lru::LruCache;
 use crate::storage::memtable::MemTable;
+use crate::storage::page::builder::Page;
 use crate::storage::record::Record;
 use crate::meta::TableMeta;
 use crate::storage::page::io::read_page_from_disk;
+use crate::engine::engine::EngineMetrics;
 
 use std::path::PathBuf;
 
@@ -22,6 +25,8 @@ impl Reader {
         memtable: &MemTable,
         id: &str,
         snapshot: u64,
+        page_cache: &mut LruCache<u64, Page>,
+        metrics: &mut EngineMetrics,
     ) -> Option<Record> {
         // Memtable first
         if let Some(rec) = memtable.get(id, snapshot) {
@@ -29,21 +34,32 @@ impl Reader {
         }
 
         // Immutable pages (newest → oldest)
-        for page_info in meta.pages.iter().rev() {
-            if id < page_info.min_id.as_str() || id > page_info.max_id.as_str() {
-                continue;
-            }
+        for pages_at_level in meta.level.iter() {
+            for page_info in pages_at_level.iter().rev() {
+                if id < page_info.min_id.as_str() || id > page_info.max_id.as_str() {
+                    continue;
+                }
 
-            let path = self.data_dir.join(&page_info.file_name);
-            let page = read_page_from_disk(&path).ok()?;
+                let page = if let Some(p) = page_cache.get(&page_info.page_id) {
+                    metrics.page_cache_hits += 1;
+                    p.clone()
+                } else {
+                    metrics.page_cache_misses += 1;
+                    metrics.pages_read_from_disk += 1;
+                    let path = self.data_dir.join(&page_info.file_name);
+                    let p = read_page_from_disk(&path).ok()?;
+                    page_cache.put(page_info.page_id, p.clone(), metrics);
+                    p
+                };
 
-            for rec in page.records.iter().rev() {
-                if rec.id == id && rec.seqno <= snapshot {
-                    return if rec.is_tombstone {
-                        None
-                    } else {
-                        Some(rec.clone())
-                    };
+                for rec in page.records.iter().rev() {
+                    if rec.id == id && rec.seqno <= snapshot {
+                        return if rec.is_tombstone {
+                            None
+                        } else {
+                            Some(rec.clone())
+                        };
+                    }
                 }
             }
         }
